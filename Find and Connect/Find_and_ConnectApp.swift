@@ -11,6 +11,7 @@ import SwiftUI
 struct Find_and_ConnectApp: App {
     var body: some Scene {
         WindowGroup {
+            
             ContentView()
         }
     }
