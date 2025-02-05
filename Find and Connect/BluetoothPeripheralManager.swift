@@ -22,7 +22,11 @@ class BluetoothPeripheralManager: NSObject, ObservableObject, CBPeripheralManage
         "DPI_2016_Hallway": "11"
     ]
  // Will be set based on nearest beacon
-    private let deviceUUID = UUID() // Unique identifier for this device
+    private var eid: String = "" //device EID
+    
+    private let eidGenerator = EidGenerator()
+    
+    private var tellSet = LogModifier()
     
     override init() {
         super.init()
@@ -54,33 +58,39 @@ class BluetoothPeripheralManager: NSObject, ObservableObject, CBPeripheralManage
     }
     
     func startAdvertising(username: String, locationName: String) {
-        // Convert location name to ID using the map
+        // Only advertise if we have a valid location
+        guard locationToIDMap[locationName] != nil else {
+            print("Not advertising - invalid location")
+            return
+        }
+        
+        // Generate a new EID
+        eid = eidGenerator.getEid()
+        
+        // Update tellSet with new data (use locationName instead of mappedLocationId)
+        tellSet.updateLog(
+            eid: eid,
+            username: username,
+            locationId: locationName  // Use the actual location name
+        )
+        
+        // For advertising, use the mapped ID
         let mappedLocationId = locationToIDMap[locationName] ?? "unknown"
         
-        // Create tellSet data
-        let tellSetData: [String: Any] = [
-            "timestamp": Date().timeIntervalSince1970,
-            "deviceUUID": deviceUUID.uuidString,
-            "username": username,
-            "locationId": mappedLocationId  // use the mapped ID
-        ]
-        
-        // Convert tellSet to Data
-        let jsonData = try? JSONSerialization.data(withJSONObject: tellSetData)
-        
-        // Setup service
+        // Setup service and start advertising
         let service = CBMutableService(type: serviceUUID, primary: true)
         peripheralManager.add(service)
         
-        // Setup advertisement data
+        let tellSetData = tellSet.getLogData()
+        
         let advertisementData: [String: Any] = [
             CBAdvertisementDataServiceUUIDsKey: [serviceUUID],
-            CBAdvertisementDataManufacturerDataKey: jsonData ?? Data()
+            CBAdvertisementDataManufacturerDataKey: tellSetData ?? Data()
         ]
         
         peripheralManager.startAdvertising(advertisementData)
         isAdvertising = true
-        print("Started advertising with tellSet: \(tellSetData)")
+        print("Started advertising for location: \(locationName) with EID: \(eid)")
     }
     
     func stopAdvertising() {

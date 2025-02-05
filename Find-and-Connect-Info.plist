@@ -4,7 +4,8 @@
 <dict>
 	<key>UIBackgroundModes</key>
 	<array>
-		<string></string>
+		<string>bluetooth-central</string>
+		<string>bluetooth-peripheral</string>
 	</array>
 </dict>
 </plist>

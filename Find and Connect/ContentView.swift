@@ -9,6 +9,7 @@ import SwiftUI
 import Foundation
 import CoreBluetooth
 import UIKit
+import UserNotifications
 
 struct ContentView: View {
     @StateObject private var bluetoothManager = BluetoothCentralManager()
@@ -16,6 +17,8 @@ struct ContentView: View {
     @State private var isDeviceListExpanded = false
     @AppStorage("isLoggedIn") private var isLoggedIn = false
     @AppStorage("username") private var username = ""
+    
+    let center = UNUserNotificationCenter.current()
     
     var body: some View {
         if !isLoggedIn {
@@ -69,91 +72,90 @@ struct ContentView: View {
                                 .fill(Color.white.opacity(0.15))
                         )
                     } else {
-                        if bluetoothManager.isLocked {
-                            // Locked mode UI
-                            VStack(spacing: 15) {
-                                Text("Locked on Beacon")
-                                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                                    .foregroundColor(.white)
-                                
-                                if let rssi = bluetoothManager.lastRSSI {
-                                    HStack {
-                                        Image(systemName: "wifi")
-                                        Text("Signal: \(rssi) dBm")
-                                    }
-                                    .font(.system(size: 18))
-                                    .foregroundColor(.white)
-                                }
-                                
-                                Button(action: {
-                                    bluetoothManager.unlockBeacon()
-                                    peripheralManager.stopAdvertising()
-                                }) {
-                                    Text("Stop")
-                                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        VStack(spacing: 15) {
+                            if bluetoothManager.isScanning {
+                                if !bluetoothManager.discoveredBeacons.isEmpty {
+                                    // Show current location info
+                                    Text("Current Location")
+                                        .font(.system(size: 24, weight: .bold, design: .rounded))
                                         .foregroundColor(.white)
-                                        .frame(maxWidth: .infinity)
-                                        .padding()
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 15)
-                                                .fill(Color.red.opacity(0.3))
-                                        )
-                                        .padding(.horizontal)
-                                }
-                            }
-                            .padding()
-                            .background(
-                                RoundedRectangle(cornerRadius: 20)
-                                    .fill(Color.white.opacity(0.15))
-                            )
-                            .padding()
-                        } else {
-                            // Scanning status
-                            HStack {
-                                Image(systemName: "dot.radiowaves.left.and.right")
-                                    .font(.system(size: 24))
-                                Text("Scanning for devices...")
-                            }
-                            .foregroundColor(.white)
-                            .padding()
-                            
-                            // Nearest beacon info with Start button
-                            if let locationId = bluetoothManager.nearestBeaconId {
-                                VStack(spacing: 10) {
-                                    Text("Nearest Device")
-                                        .font(.system(size: 18, weight: .semibold, design: .rounded))
                                     
-                                    Text(locationId)
-                                        .font(.system(size: 16, design: .monospaced))
+                                    if let locationId = bluetoothManager.nearestBeaconId {
+                                        Text(locationId)
+                                            .font(.system(size: 18, design: .monospaced))
+                                            .foregroundColor(.white)
+                                    }
                                     
                                     if let rssi = bluetoothManager.lastRSSI {
                                         HStack {
                                             Image(systemName: "wifi")
                                             Text("Signal: \(rssi) dBm")
                                         }
-                                        .font(.system(size: 14))
+                                        .font(.system(size: 18))
+                                        .foregroundColor(.white)
                                     }
                                     
                                     Button(action: {
-                                        bluetoothManager.lockOnBeacon()
-                                        // Start advertising with the current location
-                                        if let locationName = bluetoothManager.nearestBeaconId {
-                                            peripheralManager.startAdvertising(username: username, locationName: locationName)
-                                        }
+                                        bluetoothManager.stopScanning()
+                                        peripheralManager.stopAdvertising()
                                     }) {
-                                        Text("Start")
+                                        Text("Stop")
                                             .font(.system(size: 18, weight: .semibold, design: .rounded))
                                             .foregroundColor(.white)
                                             .frame(maxWidth: .infinity)
                                             .padding()
                                             .background(
                                                 RoundedRectangle(cornerRadius: 15)
-                                                    .fill(Color.green.opacity(0.3))
+                                                    .fill(Color.red.opacity(0.3))
                                             )
+                                            .padding(.horizontal)
                                     }
+                                } else {
+                                    Text("Searching for rooms...")
+                                        .font(.system(size: 20, weight: .medium, design: .rounded))
+                                        .foregroundColor(.white)
                                 }
+                            } else {
+                                Button(action: {
+                                    bluetoothManager.startScanningBeacon()
+                                }) {
+                                    Text("Start Scanning")
+                                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 15)
+                                                .fill(Color.green.opacity(0.3))
+                                        )
+                                }
+                            }
+                        }
+                        .padding()
+                        .background(
+                            RoundedRectangle(cornerRadius: 20)
+                                .fill(Color.white.opacity(0.15))
+                        )
+                        .padding()
+                        
+                        // Collapsible discovered devices list
+                        VStack {
+                            Button(action: {
+                                withAnimation {
+                                    isDeviceListExpanded.toggle()
+                                }
+                            }) {
+                                HStack {
+                                    Text("Discovered Locations")
+                                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                                    Text("(\(bluetoothManager.discoveredBeacons.count))")
+                                        .font(.system(size: 16, weight: .medium))
+                                    Spacer()
+                                    Image(systemName: isDeviceListExpanded ? "chevron.up" : "chevron.down")
+                                        .font(.system(size: 14, weight: .bold))
+                                }
+                                .foregroundColor(.white)
                                 .padding()
-                                .frame(maxWidth: .infinity)
                                 .background(
                                     RoundedRectangle(cornerRadius: 15)
                                         .fill(Color.white.opacity(0.15))
@@ -161,94 +163,68 @@ struct ContentView: View {
                                 .padding(.horizontal)
                             }
                             
-                            // Collapsible discovered devices list
-                            VStack {
-                                Button(action: {
-                                    withAnimation {
-                                        isDeviceListExpanded.toggle()
-                                    }
-                                }) {
-                                    HStack {
-                                        Text("Discovered Devices")
-                                            .font(.system(size: 18, weight: .semibold, design: .rounded))
-                                        Text("(\(bluetoothManager.discoveredBeacons.count))")
-                                            .font(.system(size: 16, weight: .medium))
-                                        Spacer()
-                                        Image(systemName: isDeviceListExpanded ? "chevron.up" : "chevron.down")
-                                            .font(.system(size: 14, weight: .bold))
-                                    }
-                                    .foregroundColor(.white)
-                                    .padding()
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 15)
-                                            .fill(Color.white.opacity(0.15))
-                                    )
-                                    .padding(.horizontal)
-                                }
-                                
-                                if isDeviceListExpanded {
-                                    ScrollView {
-                                        LazyVStack(spacing: 10) { //Lazy VStack to save RAM
-                                            ForEach(bluetoothManager.discoveredBeacons, id: \.self) { beacon in
-                                                HStack {
-                                                    Image(systemName: "wave.3.right")
-                                                        .foregroundColor(.blue)
-                                                    Text(beacon)
-                                                        .font(.system(size: 14, design: .monospaced))
-                                                    Spacer()
-                                                    if beacon == bluetoothManager.nearestBeaconId {
-                                                        Image(systemName: "star.fill")
-                                                            .foregroundColor(.yellow)
-                                                    }
+                            if isDeviceListExpanded {
+                                ScrollView {
+                                    LazyVStack(spacing: 10) {
+                                        ForEach(bluetoothManager.discoveredBeacons, id: \.self) { beacon in
+                                            HStack {
+                                                Image(systemName: "wave.3.right")
+                                                    .foregroundColor(.blue)
+                                                Text(beacon)
+                                                    .font(.system(size: 14, design: .monospaced))
+                                                Spacer()
+                                                if beacon == bluetoothManager.nearestBeaconId {
+                                                    Image(systemName: "star.fill")
+                                                        .foregroundColor(.yellow)
                                                 }
-                                                .padding()
-                                                .background(
-                                                    RoundedRectangle(cornerRadius: 10)
-                                                        .fill(Color.white.opacity(0.9))
-                                                )
-                                                .padding(.horizontal)
                                             }
+                                            .padding()
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 10)
+                                                    .fill(Color.white.opacity(0.9))
+                                            )
+                                            .padding(.horizontal)
                                         }
                                     }
                                 }
+                                .frame(maxHeight: 300)
                             }
                         }
                     }
                     
                     Spacer()
                 }
+            } //Receive notification if location/beacon changes
+            .onReceive(NotificationCenter.default.publisher(for: Notification.Name("LocationChanged"))) { notification in
+                if let locationName = notification.userInfo?["locationName"] as? String {
+                    peripheralManager.startAdvertising(username: username, locationName: locationName)
+                    sendLocationChangeNotification(newLocation: locationName)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: Notification.Name("OutOfRange"))) { _ in
+                peripheralManager.stopAdvertising()
+                sendLocationChangeNotification(newLocation: "Out of range")
             }
         }
     }
-}
-
-struct DeviceRow: View {
-    let device: (name: String, peripheral: CBPeripheral)
-    let onPairTapped: () -> Void
     
-    var body: some View {
-        HStack {
-            Text(device.name)
-                .font(.system(size: 18, weight: .medium, design: .rounded))
-                .foregroundColor(.white)
-            Spacer()
-            Button(action: onPairTapped) {
-                Text("Pair")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundColor(.orange)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color.white)
-                    )
+    func sendLocationChangeNotification(newLocation: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "Location Changed"
+        content.body = "You are now in \(newLocation)"
+        content.sound = .default
+        
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil
+        )
+        
+        center.add(request) { error in
+            if let error = error {
+                print("Notification error: \(error.localizedDescription)")
             }
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.black.opacity(0.2))
-        )
     }
 }
 
