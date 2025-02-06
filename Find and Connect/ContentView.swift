@@ -9,199 +9,266 @@ import SwiftUI
 import Foundation
 import CoreBluetooth
 import UIKit
+import UserNotifications
 
 struct ContentView: View {
-    @StateObject private var bluetoothManager = BluetoothManager()
+    @StateObject private var bluetoothManager = BluetoothCentralManager()
+    @StateObject private var peripheralManager = BluetoothPeripheralManager()
+    @State private var isDeviceListExpanded = false
+    @AppStorage("isLoggedIn") private var isLoggedIn = false
+    @AppStorage("username") private var username = ""
+    @State private var showingTellSetLog = false
+    
+    let center = UNUserNotificationCenter.current()
     
     var body: some View {
-        ZStack {
-            // Background color based on state
-            (bluetoothManager.isPaired ? Color.green : Color.orange)
+        if !isLoggedIn {
+            LoginView(isLoggedIn: $isLoggedIn, username: $username)
+        } else {
+            ZStack {
+                // Background gradient
+                LinearGradient(
+                    gradient: Gradient(colors: [Color.blue.opacity(0.8), Color.black.opacity(0.9)]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
                 .ignoresSafeArea()
-            
-            if !bluetoothManager.isBluetoothOn {
-                // Bluetooth Off View
+                
                 VStack(spacing: 20) {
-                    Image(systemName: "bluetooth.slash")
-                        .font(.system(size: 50))
-                        .foregroundColor(.white)
-                    
-                    Text("Bluetooth is Off")
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                    
-                    Text("Please enable Bluetooth in Settings to continue")
-                        .font(.system(size: 16, weight: .medium, design: .rounded))
-                        .foregroundColor(.white)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                    
-                    Button(action: {
-                        if let url = URL(string: "App-Prefs:root=Bluetooth"),
-                           UIApplication.shared.canOpenURL(url) {
-                            UIApplication.shared.open(url)
-                        } else {
-                            // Fallback to general settings if the direct Bluetooth URL doesn't work
-                            if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
-                                UIApplication.shared.open(settingsUrl)
-                            }
-                        }
-                    }) {
-                        Text("Open Settings")
-                            .font(.system(size: 17, weight: .semibold, design: .rounded))
-                            .foregroundColor(.orange)
-                            .padding(.horizontal, 30)
-                            .padding(.vertical, 12)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color.white)
-                            )
-                    }
-                    .padding(.top, 10)
-                }
-            } else {
-                VStack {
-                    // Only show the status text when not pairing
-                    if !bluetoothManager.isPairing {
-                        Text(bluetoothManager.isPaired ? "Paired" : "Looking for Rooms...")
+                    // Header with username and logout button
+                    HStack {
+                        Text("Hello, \(username)")
                             .font(.system(size: 28, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
-                            .padding()
-                    }
-                    
-                    if !bluetoothManager.isPaired && !bluetoothManager.isPairing {
-                        // Show list of discovered devices
-                        ScrollView {
-                            VStack(spacing: 10) {
-                                ForEach(bluetoothManager.discoveredDevices, id: \.peripheral.identifier) { device in
-                                    DeviceRow(device: device) {
-                                        bluetoothManager.pair(with: device)
-                                    }
-                                }
-                            }
-                            .padding()
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            isLoggedIn = false
+                            UserDefaults.standard.removeObject(forKey: "username")
+                            UserDefaults.standard.removeObject(forKey: "isLoggedIn")
+                        }) {
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                                .font(.system(size: 20))
+                                .foregroundColor(.white)
                         }
                     }
+                    .padding(.horizontal)
+                    .padding(.top, 30)
                     
-                    if bluetoothManager.isPairing {
-                        // Create a parent VStack for the entire pairing view
-                        VStack {
-                            Spacer() // Push content to center
+                    if !bluetoothManager.isBluetoothOn {
+                        // Bluetooth disabled view
+                        VStack(spacing: 15) {
+                            Image(systemName: "bluetooth.slash")
+                                .font(.system(size: 50))
+                                .foregroundColor(.white)
                             
-                            // Center content VStack
-                            VStack(spacing: 15) {
-                                Text(bluetoothManager.pairingText)
-                                    .font(.system(size: 24, weight: .semibold, design: .rounded))
-                                    .foregroundColor(.white)
-                                ProgressView(value: bluetoothManager.pairingProgress)
-                                    .progressViewStyle(LinearProgressViewStyle(tint: .white))
-                                    .frame(width: 200)
-                            }
-                            
-                            Spacer() // Create space between center content and button
-                            
-                            // Cancel button at bottom
-                            Button(action: {
-                                bluetoothManager.cancelPairing()
-                            }) {
-                                Text("Cancel Pairing")
-                                    .font(.system(size: 17, weight: .semibold, design: .rounded))
-                                    .foregroundColor(.red)
-                                    .padding(.horizontal, 30)
-                                    .padding(.vertical, 12)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(Color.white)
-                                    )
+                            Text("Please enable Bluetooth")
+                                .font(.system(size: 20, weight: .medium, design: .rounded))
+                                .foregroundColor(.white)
+                        }
+                        .padding()
+                        .background(
+                            RoundedRectangle(cornerRadius: 15)
+                                .fill(Color.white.opacity(0.15))
+                        )
+                    } else {
+                        VStack(spacing: 15) {
+                            if bluetoothManager.isScanning {
+                                if !bluetoothManager.discoveredBeacons.isEmpty {
+                                    // Show current location info
+                                    Text("Current Location")
+                                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                                        .foregroundColor(.white)
+                                    
+                                    if let locationId = bluetoothManager.nearestBeaconId {
+                                        Text(locationId)
+                                            .font(.system(size: 18, design: .monospaced))
+                                            .foregroundColor(.white)
+                                    }
+                                    
+                                    if let rssi = bluetoothManager.lastRSSI {
+                                        HStack {
+                                            Image(systemName: "wifi")
+                                            Text("Signal: \(rssi) dBm")
+                                        }
+                                        .font(.system(size: 18))
+                                        .foregroundColor(.white)
+                                    }
+                                    
+                                    Button(action: {
+                                        bluetoothManager.stopScanning()
+                                        peripheralManager.stopAdvertising()
+                                    }) {
+                                        Text("Stop")
+                                            .font(.system(size: 18, weight: .semibold, design: .rounded))
+                                            .foregroundColor(.white)
+                                            .frame(maxWidth: .infinity)
+                                            .padding()
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 15)
+                                                    .fill(Color.red.opacity(0.3))
+                                            )
+                                            .padding(.horizontal)
+                                    }
+                                } else {
+                                    Text("Searching for rooms...")
+                                        .font(.system(size: 20, weight: .medium, design: .rounded))
+                                        .foregroundColor(.white)
+                                }
+                            } else {
+                                Button(action: {
+                                    bluetoothManager.startScanningBeacon()
+                                }) {
+                                    Text("Start Scanning")
+                                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 15)
+                                                .fill(Color.green.opacity(0.3))
+                                        )
+                                }
                             }
                         }
                         .padding()
-                        .frame(maxHeight: .infinity) // Take up full height
-                    }
-                    
-                    if bluetoothManager.isPaired {
-                        VStack(spacing: 20) {
-                            Text("Connected to: \(bluetoothManager.currentDeviceName ?? "")")
-                                .font(.system(size: 20, weight: .medium, design: .rounded))
+                        .background(
+                            RoundedRectangle(cornerRadius: 20)
+                                .fill(Color.white.opacity(0.15))
+                        )
+                        .padding()
+                        
+                        // Collapsible discovered devices list
+                        VStack {
+                            Button(action: {
+                                withAnimation {
+                                    isDeviceListExpanded.toggle()
+                                }
+                            }) {
+                                HStack {
+                                    Text("Discovered Locations")
+                                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                                    Text("(\(bluetoothManager.discoveredBeacons.count))")
+                                        .font(.system(size: 16, weight: .medium))
+                                    Spacer()
+                                    Image(systemName: isDeviceListExpanded ? "chevron.up" : "chevron.down")
+                                        .font(.system(size: 14, weight: .bold))
+                                }
                                 .foregroundColor(.white)
                                 .padding()
-                            
-                            // Add a count of received data entries
-                            Text("Received Data Count: \(bluetoothManager.receivedData.count)")
-                                .font(.system(size: 16, weight: .medium, design: .rounded))
-                                .foregroundColor(.white)
-                            
-                            // Display received data with more detail
-                            ScrollView {
-                                VStack(spacing: 10) {
-                                    ForEach(Array(bluetoothManager.receivedData.keys), id: \.self) { key in
-                                        VStack(alignment: .leading, spacing: 5) {
-                                            Text("Key: \(key)")
-                                                .font(.system(size: 16, weight: .regular, design: .rounded))
-                                                .foregroundColor(.white)
-                                            
-                                            if let value = bluetoothManager.receivedData[key] {
-                                                Text("Value: \(String(describing: value))")
-                                                    .font(.system(size: 16, weight: .medium, design: .rounded))
-                                                    .foregroundColor(.white.opacity(0.9))
-                                            }
-                                        }
-                                        .padding()
-                                        .background(Color.black.opacity(0.2))
-                                        .cornerRadius(8)
-                                    }
-                                }
+                                .background(
+                                    RoundedRectangle(cornerRadius: 15)
+                                        .fill(Color.white.opacity(0.15))
+                                )
                                 .padding(.horizontal)
                             }
                             
-                            Button(action: {
-                                bluetoothManager.disconnect()
-                            }) {
-                                Text("Disconnect")
-                                    .font(.system(size: 17, weight: .semibold, design: .rounded))
-                                    .foregroundColor(.green)
-                                    .padding(.horizontal, 30)
-                                    .padding(.vertical, 12)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(Color.white)
-                                    )
+                            if isDeviceListExpanded {
+                                ScrollView {
+                                    LazyVStack(spacing: 10) {
+                                        ForEach(bluetoothManager.discoveredBeacons, id: \.self) { beacon in
+                                            HStack {
+                                                Image(systemName: "wave.3.right")
+                                                    .foregroundColor(.blue)
+                                                Text(beacon)
+                                                    .font(.system(size: 14, design: .monospaced))
+                                                Spacer()
+                                                if beacon == bluetoothManager.nearestBeaconId {
+                                                    Image(systemName: "star.fill")
+                                                        .foregroundColor(.yellow)
+                                                }
+                                            }
+                                            .padding()
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 10)
+                                                    .fill(Color.white.opacity(0.9))
+                                            )
+                                            .padding(.horizontal)
+                                        }
+                                    }
+                                }
+                                .frame(maxHeight: 300)
                             }
                         }
                     }
+                    
+                    Button(action: {
+                        showingTellSetLog = true
+                    }) {
+                        Text("View TellSet Log")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 15)
+                                    .fill(Color.blue.opacity(0.3))
+                            )
+                    }
+                    .sheet(isPresented: $showingTellSetLog) {
+                        if let logContents = peripheralManager.tellSet.readLogFile() {
+                            TellSetView(
+                                logContents: logContents,
+                                onClear: {
+                                    peripheralManager.tellSet.clearLogFile()
+                                }
+                            )
+                        } else {
+                            TellSetView(
+                                logContents: "Error reading log file",
+                                onClear: {
+                                    peripheralManager.tellSet.clearLogFile()
+                                }
+                            )
+                        }
+                    }
+                    
+                    Button(action: {
+                        peripheralManager.tellSet.printLogFilePath()
+                    }) {
+                        Text("Show Log File Path")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 15)
+                                    .fill(Color.purple.opacity(0.3))
+                            )
+                    }
+                    
+                    Spacer()
                 }
+            } //Receive notification if location/beacon changes
+            .onReceive(NotificationCenter.default.publisher(for: Notification.Name("LocationChanged"))) { notification in
+                if let locationName = notification.userInfo?["locationName"] as? String {
+                    peripheralManager.startAdvertising(username: username, locationName: locationName)
+                    sendLocationChangeNotification(newLocation: locationName)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: Notification.Name("OutOfRange"))) { _ in
+                peripheralManager.stopAdvertising()
+                sendLocationChangeNotification(newLocation: "Out of range")
             }
         }
     }
-}
-
-struct DeviceRow: View {
-    let device: (name: String, peripheral: CBPeripheral)
-    let onPairTapped: () -> Void
     
-    var body: some View {
-        HStack {
-            Text(device.name)
-                .font(.system(size: 18, weight: .medium, design: .rounded))
-                .foregroundColor(.white)
-            Spacer()
-            Button(action: onPairTapped) {
-                Text("Pair")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundColor(.orange)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color.white)
-                    )
+    func sendLocationChangeNotification(newLocation: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "Location Changed"
+        content.body = "You are now in \(newLocation)"
+        content.sound = .default
+        
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil
+        )
+        
+        center.add(request) { error in
+            if let error = error {
+                print("Notification error: \(error.localizedDescription)")
             }
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.black.opacity(0.2))
-        )
     }
 }
 
