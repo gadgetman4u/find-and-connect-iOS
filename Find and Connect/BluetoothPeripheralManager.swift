@@ -26,7 +26,13 @@ class BluetoothPeripheralManager: NSObject, ObservableObject, CBPeripheralManage
     
     private let eidGenerator = EidGenerator()
     
-    private var tellSet = LogModifier()
+    // Make tellSet accessible for testing
+    var tellSet: LogModifier { _tellSet }
+    private var _tellSet = LogModifier()
+    
+    private var logTimer: Timer?
+    private var currentUsername: String = ""
+    private var currentLocation: String = ""
     
     override init() {
         super.init()
@@ -64,15 +70,22 @@ class BluetoothPeripheralManager: NSObject, ObservableObject, CBPeripheralManage
             return
         }
         
-        // Generate a new EID
+        // Generate a new EID and ensure it's not empty
         eid = eidGenerator.getEid()
+        print("Generated new EID: \(eid)") // Debug print
         
-        // Update tellSet with new data (use locationName instead of mappedLocationId)
+        self.currentUsername = username
+        self.currentLocation = locationName
+        
+        // Update tellSet with new data
         tellSet.updateLog(
             eid: eid,
             username: username,
-            locationId: locationName  // Use the actual location name
+            locationId: locationName
         )
+        
+        // Start periodic logging
+        startPeriodicLogging()
         
         // For advertising, use the mapped ID
         let mappedLocationId = locationToIDMap[locationName] ?? "unknown"
@@ -82,9 +95,11 @@ class BluetoothPeripheralManager: NSObject, ObservableObject, CBPeripheralManage
         peripheralManager.add(service)
         
         let tellSetData = tellSet.getLogData()
+        print("📤 Advertising Data: \(String(data: tellSetData ?? Data(), encoding: .utf8) ?? "none")")
         
         let advertisementData: [String: Any] = [
-            CBAdvertisementDataServiceUUIDsKey: [serviceUUID],
+            CBAdvertisementDataServiceUUIDsKey: [serviceUUID], // Change back to serviceUUID
+            CBAdvertisementDataLocalNameKey: eid, // Add EID as local name
             CBAdvertisementDataManufacturerDataKey: tellSetData ?? Data()
         ]
         
@@ -93,13 +108,34 @@ class BluetoothPeripheralManager: NSObject, ObservableObject, CBPeripheralManage
         print("Started advertising for location: \(locationName) with EID: \(eid)")
     }
     
+    private func startPeriodicLogging() {
+        // Stop existing timer if any
+        logTimer?.invalidate()
+        
+        // Create new timer that fires every 30 seconds
+        logTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            // Generate new EID and log
+            self.eid = self.eidGenerator.getEid()
+            self.tellSet.updateLog(
+                eid: self.eid,
+                username: self.currentUsername,
+                locationId: self.currentLocation
+            )
+        }
+    }
+    
     func stopAdvertising() {
+        logTimer?.invalidate()
+        logTimer = nil
         peripheralManager.stopAdvertising()
         isAdvertising = false
-        print("Stopped advertising")
+        tellSet.clearLogFile()  // Clear log when stopping
+        print("Stopped advertising and cleared log")
     }
     
     deinit {
+        logTimer?.invalidate()
         stopAdvertising()
     }
 } 

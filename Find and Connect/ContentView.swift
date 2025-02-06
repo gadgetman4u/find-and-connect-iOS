@@ -17,6 +17,7 @@ struct ContentView: View {
     @State private var isDeviceListExpanded = false
     @AppStorage("isLoggedIn") private var isLoggedIn = false
     @AppStorage("username") private var username = ""
+    @State private var showingTellSetLog = false
     
     let center = UNUserNotificationCenter.current()
     
@@ -190,6 +191,49 @@ struct ContentView: View {
                                 .frame(maxHeight: 300)
                             }
                         }
+                    }
+                    
+                    Button(action: {
+                        showingTellSetLog = true
+                    }) {
+                        Text("View TellSet Log")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 15)
+                                    .fill(Color.blue.opacity(0.3))
+                            )
+                    }
+                    .sheet(isPresented: $showingTellSetLog) {
+                        if let logContents = peripheralManager.tellSet.readLogFile() {
+                            TellSetView(
+                                logContents: logContents,
+                                onClear: {
+                                    peripheralManager.tellSet.clearLogFile()
+                                }
+                            )
+                        } else {
+                            TellSetView(
+                                logContents: "Error reading log file",
+                                onClear: {
+                                    peripheralManager.tellSet.clearLogFile()
+                                }
+                            )
+                        }
+                    }
+                    
+                    Button(action: {
+                        peripheralManager.tellSet.printLogFilePath()
+                    }) {
+                        Text("Show Log File Path")
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 15)
+                                    .fill(Color.purple.opacity(0.3))
+                            )
                     }
                     
                     Spacer()

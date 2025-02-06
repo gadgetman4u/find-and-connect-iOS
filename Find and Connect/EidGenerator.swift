@@ -11,7 +11,9 @@ class EidGenerator {
     private var eid: String = ""
 
     func getEid() -> String {
-        return eid;
+        let uuid = UUID().uuidString
+        print("Generated EID: \(uuid)") // Debug print
+        return uuid
     }
     
     func generateEid() -> String {

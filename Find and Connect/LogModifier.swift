@@ -33,6 +33,7 @@ class LogModifier {
     }
     
     func updateLog(eid: String, username: String, locationId: String) {
+        print("Updating log with EID: \(eid)") // Debug print
         self.timestamp = Date().timeIntervalSince1970
         self.eid = eid
         self.username = username
@@ -55,15 +56,25 @@ class LogModifier {
         // Combine time and microseconds
         let preciseTime = timeString + microseconds
         
-        let logEntry = "\(preciseTime),\(eid),\(username),\(locationId)\n"
+        // Debug print
+        print("Writing log entry with EID: \(eid)")
+        
+        // Make sure we're using the actual EID
+        let logEntry = "\n\(preciseTime),\(eid),\(username),\(locationId)\n"
         
         if let fileHandle = try? FileHandle(forWritingTo: logfileURL) {
             fileHandle.seekToEndOfFile()
             fileHandle.write(logEntry.data(using: .utf8) ?? Data())
             fileHandle.closeFile()
-            print("Wrote tellSet entry to log file")
+            print("📝 TellSet Entry: \(logEntry)")
+            
+            // Debug print the file contents
+            if let contents = try? String(contentsOf: logfileURL, encoding: .utf8) {
+                print("Current file contents:")
+                print(contents)
+            }
         } else {
-            print("Error: Could not write to log file")
+            print("❌ Error: Could not write to log file")
         }
     }
     
@@ -87,6 +98,10 @@ class LogModifier {
     func clearLogFile() {
         try? "".write(to: logfileURL, atomically: true, encoding: .utf8)
         print("Cleared tellSet log file")
+    }
+    
+    func printLogFilePath() {
+        print("📂 TellSet log file location: \(logfileURL.path)")
     }
 }
 
