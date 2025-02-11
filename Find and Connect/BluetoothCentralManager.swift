@@ -1,11 +1,17 @@
 import Foundation
 import CoreBluetooth
 
-struct HeardSetEntry {
-    let timestamp: TimeInterval
-    let deviceUUID: String
-    let locationId: String
+struct HeardSetEntry: Identifiable {
+    let id = UUID()
+    let name: String
+    let location: String
     let rssi: NSNumber
+    let timestamp: TimeInterval
+    
+    // Add computed property for display
+    var displayName: String {
+        return name
+    }
 }
 
 class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDelegate {
@@ -15,15 +21,20 @@ class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDeleg
     @Published var discoveredBeacons: [String] = []
     @Published var isScanning = false
     @Published var currentLocationId: String = ""
+    @Published var discoveredDevices: [HeardSetEntry] = []
     
     private var centralManager: CBCentralManager!
     private let beaconUUID = CBUUID(string: "00002080-0000-1000-8000-00805f9b34fb") // For finding beacons
     private let serviceUUID = CBUUID(string: "09bda1b5-41fa-3620-a65b-de20ab32db77") // For finding other devices
     private var beaconRSSIMap: [String: NSNumber] = [:]
-    private var heardSet: [HeardSetEntry] = []
+    var heardSet: LogModifier { _heardSet }
+    private var _heardSet = LogModifier(isHeardSet: true)
     
     private var scanTimer: Timer?
-    private var isRoomScanActive = true // Track which scan mode is active
+    @Published var isRoomScanActive = true // Track which scan mode is active
+    
+    private var lastPrintTime: TimeInterval = 0  // Add this property
+    private let printInterval: TimeInterval = 5.0  // 5 seconds interval
     
     override init() {
         super.init()
@@ -92,7 +103,7 @@ class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDeleg
     }
     
     private func scanForDevices() {
-        print("Scanning for devices...")
+        print("Scanning for devices with service UUID: \(serviceUUID.uuidString)")
         centralManager.stopScan()
         centralManager.scanForPeripherals(
             withServices: [serviceUUID],
@@ -129,22 +140,43 @@ class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDeleg
                     }
                 }
             } else {
-                // Handle device discovery
-                if let manufacturerData = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data,
-                   let tellSetData = try? JSONSerialization.jsonObject(with: manufacturerData) as? [String: Any],
-                   let timestamp = tellSetData["timestamp"] as? TimeInterval,
-                   let deviceUUID = tellSetData["deviceUUID"] as? String,
-                   let locationId = tellSetData["locationId"] as? String {
+                let currentTime = Date().timeIntervalSince1970
+                // Only print if 5 seconds have passed since last print
+                if currentTime - lastPrintTime >= printInterval {
+                    print("📱 Found peripheral: \(peripheral.name ?? "Unknown")")
                     
-                    let entry = HeardSetEntry(
-                        timestamp: timestamp,
-                        deviceUUID: deviceUUID,
-                        locationId: locationId,
-                        rssi: RSSI
-                    )
+                    if let serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
+                        print("🛠 Advertised Service UUIDs: \(serviceUUIDs)")
+                        
+                        if let eidUUID = serviceUUIDs.first(where: { $0 != CBUUID(string: "09bda1b5-41fa-3620-a65b-de20ab32db77") }) {
+                            print("🔑 Extracted EID: \(eidUUID.uuidString)")
+                        }
+                    }
                     
-                    heardSet.append(entry)
-                    print("Added to heardSet: \(entry)")
+                    
+                    
+                    if let manufacturerData = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data {
+                        print("📝 Raw Manufacturer data: \(manufacturerData as NSData)")
+                        if let dataString = String(data: manufacturerData, encoding: .utf8) {
+                            print("📝 Manufacturer data as string: \(dataString)")
+                        }
+                    }
+                    
+                    if let combinedString = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data,
+                       let dataString = String(data: combinedString, encoding: .utf8) {
+                        let components = dataString.split(separator: "|")
+                        if components.count == 2 {
+                            let eid = String(components[0])
+                            let location = String(components[1])
+                            print("🔑 Parsed EID: \(eid)")
+                            print("📍 Parsed Location: \(location)")
+                        } else {
+                            print("❌ Could not parse manufacturer data: \(dataString)")
+                        }
+                    }
+                    
+                    print("📶 RSSI: \(RSSI)")
+                    lastPrintTime = currentTime
                 }
             }
         }
@@ -163,12 +195,9 @@ class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDeleg
             name: Notification.Name("OutOfRange"),
             object: nil
         )
+        heardSet.clearLogFile()  // Clear heardSet when stopping
     }
     
-    // Add method to access heardSet data
-    func getHeardSetEntries() -> [HeardSetEntry] {
-        return heardSet
-    }
     
     deinit {
         stopScanning()

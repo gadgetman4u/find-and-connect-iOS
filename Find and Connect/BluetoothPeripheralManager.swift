@@ -70,14 +70,13 @@ class BluetoothPeripheralManager: NSObject, ObservableObject, CBPeripheralManage
             return
         }
         
-        // Generate a new EID and ensure it's not empty
+        // Generate a new EID
         eid = eidGenerator.getEid()
-        print("Generated new EID: \(eid)") // Debug print
         
         self.currentUsername = username
         self.currentLocation = locationName
         
-        // Update tellSet with new data
+        // Update tellSet log
         tellSet.updateLog(
             eid: eid,
             username: username,
@@ -87,20 +86,22 @@ class BluetoothPeripheralManager: NSObject, ObservableObject, CBPeripheralManage
         // Start periodic logging
         startPeriodicLogging()
         
-        // For advertising, use the mapped ID
-        let mappedLocationId = locationToIDMap[locationName] ?? "unknown"
+        // Create a combined data string with both EID and location
+        let combinedData = "\(eid)|\(locationName)"
         
         // Setup service and start advertising
         let service = CBMutableService(type: serviceUUID, primary: true)
+        
         peripheralManager.add(service)
         
-        let tellSetData = tellSet.getLogData()
-        print("📤 Advertising Data: \(String(data: tellSetData ?? Data(), encoding: .utf8) ?? "none")")
+        let eidCBUUID = CBUUID(string: eid)
+        
+        let eidService = CBMutableService(type: eidCBUUID, primary: false)
+        peripheralManager.add(eidService)
         
         let advertisementData: [String: Any] = [
-            CBAdvertisementDataServiceUUIDsKey: [serviceUUID], // Change back to serviceUUID
-            CBAdvertisementDataLocalNameKey: eid, // Add EID as local name
-            CBAdvertisementDataManufacturerDataKey: tellSetData ?? Data()
+            CBAdvertisementDataServiceUUIDsKey: [serviceUUID, eidCBUUID],
+            CBAdvertisementDataLocalNameKey: locationName
         ]
         
         peripheralManager.startAdvertising(advertisementData)

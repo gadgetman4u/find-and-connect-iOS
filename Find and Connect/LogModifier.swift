@@ -14,8 +14,9 @@ class LogModifier {
     var locationId: String
     
     private let logfileURL: URL
+    private let isHeardSet: Bool
     
-    init() {
+    init(isHeardSet: Bool = false) {
         self.timestamp = Date().timeIntervalSince1970
         self.eid = ""
         self.username = ""
@@ -23,23 +24,22 @@ class LogModifier {
         
         // Get the documents directory
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        self.logfileURL = documentsPath.appendingPathComponent("tellSet.csv")
+        self.logfileURL = documentsPath.appendingPathComponent(isHeardSet ? "heardSet.csv" : "tellSet.csv")
+        self.isHeardSet = isHeardSet
         
-        // Create empty file if it doesn't exist (no headers needed)
+        // Create empty file if it doesn't exist
         if !FileManager.default.fileExists(atPath: logfileURL.path) {
             try? "".write(to: logfileURL, atomically: true, encoding: .utf8)
-            print("Created new tellSet log file at: \(logfileURL.path)")
+            print("Created new \(isHeardSet ? "heardSet" : "tellSet") log file at: \(logfileURL.path)")
         }
     }
     
     func updateLog(eid: String, username: String, locationId: String) {
-        print("Updating log with EID: \(eid)") // Debug print
         self.timestamp = Date().timeIntervalSince1970
         self.eid = eid
         self.username = username
         self.locationId = locationId
         
-        // Write to CSV file
         writeToCSV()
     }
     
@@ -49,24 +49,18 @@ class LogModifier {
         formatter.dateFormat = "HH:mm:ss"
         let timeString = formatter.string(from: Date(timeIntervalSince1970: timestamp))
         
-        // Get microseconds
         let microseconds = String(format: "%.6f", timestamp.truncatingRemainder(dividingBy: 1))
-            .dropFirst() // remove leading "0"
-        
-        // Combine time and microseconds
+            .dropFirst()
+            
         let preciseTime = timeString + microseconds
         
-        // Debug print
-        print("Writing log entry with EID: \(eid)")
-        
-        // Make sure we're using the actual EID
         let logEntry = "\n\(preciseTime),\(eid),\(username),\(locationId)\n"
         
         if let fileHandle = try? FileHandle(forWritingTo: logfileURL) {
             fileHandle.seekToEndOfFile()
             fileHandle.write(logEntry.data(using: .utf8) ?? Data())
             fileHandle.closeFile()
-            print("📝 TellSet Entry: \(logEntry)")
+            print("📝 \(isHeardSet ? "HeardSet" : "TellSet") Entry: \(logEntry)")
             
             // Debug print the file contents
             if let contents = try? String(contentsOf: logfileURL, encoding: .utf8) {
@@ -97,11 +91,11 @@ class LogModifier {
     // Helper method to clear the log file
     func clearLogFile() {
         try? "".write(to: logfileURL, atomically: true, encoding: .utf8)
-        print("Cleared tellSet log file")
+        print("Cleared \(isHeardSet ? "heardSet" : "tellSet") log file")
     }
     
     func printLogFilePath() {
-        print("📂 TellSet log file location: \(logfileURL.path)")
+        print("📂 \(isHeardSet ? "HeardSet" : "TellSet") log file location: \(logfileURL.path)")
     }
 }
 
