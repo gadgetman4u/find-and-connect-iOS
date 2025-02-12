@@ -1,19 +1,6 @@
 import Foundation
 import CoreBluetooth
 
-struct HeardSetEntry: Identifiable {
-    let id = UUID()
-    let name: String
-    let location: String
-    let rssi: NSNumber
-    let timestamp: TimeInterval
-    
-    // Add computed property for display
-    var displayName: String {
-        return name
-    }
-}
-
 class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDelegate {
     @Published var isBluetoothOn = false
     @Published var lastRSSI: NSNumber?
@@ -21,7 +8,40 @@ class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDeleg
     @Published var discoveredBeacons: [String] = []
     @Published var isScanning = false
     @Published var currentLocationId: String = ""
-    @Published var discoveredDevices: [HeardSetEntry] = []
+    
+    // Forward mapping (name to ID)
+    private let locationToIDMap: [String: String] = [
+        "DPI_2038": "1",
+        "DPI_2032_Conf": "2",
+        "DPI_2030_Kitchen": "3",
+        "DPI_2017_Conf": "4",
+        "DPI_2006_Conf": "5",
+        "DPI_2005_Conf_1": "6",
+        "DPI_2005_Conf_2": "6",
+        "DPI_2054_Kitchen": "7",
+        "DPI_20_2049": "8",
+        "DPI_2043": "9",
+        "DPI_Alvin_2042": "10",
+        "DPI_2016_Hallway": "11"
+    ]
+    
+    // Reverse mapping (ID to name)
+    private lazy var idToLocationMap: [String: String] = {
+        var reversed: [String: String] = [:]
+        for (name, id) in locationToIDMap {
+            reversed[id] = name
+        }
+        return reversed
+    }()
+    
+    // Helper functions
+    func getLocationID(_ name: String) -> String? {
+        return locationToIDMap[name]
+    }
+    
+    func getLocationName(_ id: String) -> String? {
+        return idToLocationMap[id]
+    }
     
     private var centralManager: CBCentralManager!
     private let beaconUUID = CBUUID(string: "00002080-0000-1000-8000-00805f9b34fb") // For finding beacons
@@ -79,13 +99,13 @@ class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDeleg
         scanTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             
+            print("Timer fired, isRoomScanActive: \(self.isRoomScanActive)")
+            
             if self.isRoomScanActive {
-                // Switch to device scanning if we have a current location
                 if !self.discoveredBeacons.isEmpty {
                     self.scanForDevices()
                 }
             } else {
-                // Switch back to room scanning
                 self.scanForRooms()
             }
             
@@ -103,12 +123,19 @@ class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDeleg
     }
     
     private func scanForDevices() {
-        print("Scanning for devices with service UUID: \(serviceUUID.uuidString)")
+        print("Starting device scan cycle...")
         centralManager.stopScan()
+        
+        let scanOptions: [String: Any] = [
+            CBCentralManagerScanOptionAllowDuplicatesKey: true,
+            CBCentralManagerScanOptionSolicitedServiceUUIDsKey: [serviceUUID]
+        ]
+        
         centralManager.scanForPeripherals(
             withServices: [serviceUUID],
-            options: [CBCentralManagerScanOptionAllowDuplicatesKey: true]
+            options: scanOptions
         )
+        print("Now scanning for devices with UUID: \(serviceUUID.uuidString)")
     }
     
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
@@ -119,6 +146,9 @@ class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDeleg
                 // Handle room discovery
                 let locationId = peripheral.name ?? peripheral.identifier.uuidString
                 beaconRSSIMap[locationId] = RSSI
+                
+                print("Room Scan - Found beacon: \(locationId), RSSI: \(RSSI)")
+                print("Current discovered beacons: \(discoveredBeacons)")
                 
                 if let strongestBeacon = beaconRSSIMap.max(by: { $0.value.intValue < $1.value.intValue }) {
                     DispatchQueue.main.async {
@@ -139,44 +169,34 @@ class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDeleg
                         }
                     }
                 }
-            } else {
+            } else { //Scanning for Devices
                 let currentTime = Date().timeIntervalSince1970
                 // Only print if 5 seconds have passed since last print
                 if currentTime - lastPrintTime >= printInterval {
-                    print("📱 Found peripheral: \(peripheral.name ?? "Unknown")")
-                    
-                    if let serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
-                        print("🛠 Advertised Service UUIDs: \(serviceUUIDs)")
+                    if let fullName = peripheral.name {
+                        let eid = String(fullName.prefix(23))  // Get EID (first 23 chars)
+                        let locationID = String(fullName.dropFirst(23))  // Get location ID
+                        let locationName = self.getLocationName(locationID) ?? "Unknown Location"
                         
-                        if let eidUUID = serviceUUIDs.first(where: { $0 != CBUUID(string: "09bda1b5-41fa-3620-a65b-de20ab32db77") }) {
-                            print("🔑 Extracted EID: \(eidUUID.uuidString)")
-                        }
-                    }
-                    
-                    
-                    
-                    if let manufacturerData = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data {
-                        print("📝 Raw Manufacturer data: \(manufacturerData as NSData)")
-                        if let dataString = String(data: manufacturerData, encoding: .utf8) {
-                            print("📝 Manufacturer data as string: \(dataString)")
-                        }
-                    }
-                    
-                    if let combinedString = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data,
-                       let dataString = String(data: combinedString, encoding: .utf8) {
-                        let components = dataString.split(separator: "|")
-                        if components.count == 2 {
-                            let eid = String(components[0])
-                            let location = String(components[1])
-                            print("🔑 Parsed EID: \(eid)")
-                            print("📍 Parsed Location: \(location)")
+                        // Only log if RSSI is strong enough and locations match
+                        if RSSI.intValue >= -83 && locationToIDMap[currentLocationId] == locationID {
+                            // Log to HeardSet without username
+                            heardSet.updateHeardSetLog(
+                                eid: eid,
+                                locationId: locationName,
+                                rssi: RSSI
+                            )
+                            
+                            // Debug prints
+                            print("📱 Found nearby device: \(eid)")
+                            print("📍 Location Match: \(locationName)")
+                            print("📶 Strong RSSI: \(RSSI)")
                         } else {
-                            print("❌ Could not parse manufacturer data: \(dataString)")
+                            print("Device skipped - RSSI: \(RSSI), Device Location: \(locationID), Current Location: \(locationToIDMap[currentLocationId] ?? "unknown")")
                         }
+                        
+                        lastPrintTime = currentTime
                     }
-                    
-                    print("📶 RSSI: \(RSSI)")
-                    lastPrintTime = currentTime
                 }
             }
         }
@@ -197,7 +217,6 @@ class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDeleg
         )
         heardSet.clearLogFile()  // Clear heardSet when stopping
     }
-    
     
     deinit {
         stopScanning()

@@ -21,7 +21,22 @@ class BluetoothPeripheralManager: NSObject, ObservableObject, CBPeripheralManage
         "DPI_Alvin_2042": "10",
         "DPI_2016_Hallway": "11"
     ]
- // Will be set based on nearest beacon
+    
+    // Reverse mapping (ID to name)
+    private lazy var idToLocationMap: [String: String] = {
+        var reversed: [String: String] = [:]
+        for (name, id) in locationToIDMap {
+            reversed[id] = name
+        }
+        return reversed
+    }()
+    
+    
+    func getLocationName(_ id: String) -> String? {
+        return idToLocationMap[id]
+    }
+    
+    // Will be set based on nearest beacon
     private var eid: String = "" //device EID
     
     private let eidGenerator = EidGenerator()
@@ -63,21 +78,40 @@ class BluetoothPeripheralManager: NSObject, ObservableObject, CBPeripheralManage
         }
     }
     
+    private func updateAdvertisement(withEid eid: String) {
+        // Get location ID using helper function
+        let locationID = locationToIDMap[currentLocation] ?? "0"
+        let localName = eid + locationID
+        print(localName)
+        
+        let advertisementData: [String: Any] = [
+            CBAdvertisementDataServiceUUIDsKey: [serviceUUID],
+            CBAdvertisementDataLocalNameKey: localName,
+            CBAdvertisementDataIsConnectable: false
+        ]
+        
+        peripheralManager.stopAdvertising()
+        peripheralManager.startAdvertising(advertisementData)
+        isAdvertising = true
+        print("Advertising with EID: \(eid), LocationID: \(locationID), Location: \(currentLocation)")
+    }
+    
     func startAdvertising(username: String, locationName: String) {
         // Only advertise if we have a valid location
-        guard locationToIDMap[locationName] != nil else {
-            print("Not advertising - invalid location")
-            return
-        }
+//        guard let locationID = getLocationID(locationName) else {
+//            print("Not advertising - invalid location: \(locationName)")
+//            return
+//        }
         
         // Generate a new EID
-        eid = eidGenerator.getEid()
+        eid = eidGenerator.generateEid()
+        print("Generated EID: \(eid)")
         
         self.currentUsername = username
         self.currentLocation = locationName
         
         // Update tellSet log
-        tellSet.updateLog(
+        tellSet.updateTellSetLog(
             eid: eid,
             username: username,
             locationId: locationName
@@ -86,43 +120,26 @@ class BluetoothPeripheralManager: NSObject, ObservableObject, CBPeripheralManage
         // Start periodic logging
         startPeriodicLogging()
         
-        // Create a combined data string with both EID and location
-        let combinedData = "\(eid)|\(locationName)"
-        
-        // Setup service and start advertising
-        let service = CBMutableService(type: serviceUUID, primary: true)
-        
-        peripheralManager.add(service)
-        
-        let eidCBUUID = CBUUID(string: eid)
-        
-        let eidService = CBMutableService(type: eidCBUUID, primary: false)
-        peripheralManager.add(eidService)
-        
-        let advertisementData: [String: Any] = [
-            CBAdvertisementDataServiceUUIDsKey: [serviceUUID, eidCBUUID],
-            CBAdvertisementDataLocalNameKey: locationName
-        ]
-        
-        peripheralManager.startAdvertising(advertisementData)
-        isAdvertising = true
-        print("Started advertising for location: \(locationName) with EID: \(eid)")
+        // Update advertisement with initial EID and location
+        updateAdvertisement(withEid: eid)
     }
     
     private func startPeriodicLogging() {
-        // Stop existing timer if any
         logTimer?.invalidate()
         
-        // Create new timer that fires every 30 seconds
         logTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
-            // Generate new EID and log
-            self.eid = self.eidGenerator.getEid()
-            self.tellSet.updateLog(
+            
+            self.eid = self.eidGenerator.generateEid()
+            print("Generated new EID: \(self.eid)")
+            
+            self.tellSet.updateTellSetLog(
                 eid: self.eid,
                 username: self.currentUsername,
                 locationId: self.currentLocation
             )
+            
+            self.updateAdvertisement(withEid: self.eid)
         }
     }
     

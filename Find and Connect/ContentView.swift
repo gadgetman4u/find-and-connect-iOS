@@ -133,24 +133,8 @@ struct ContentView: View {
                             })
                         }
                     }
-                    
-                    Button(action: {
-                        showingDiscoveredDevices = true
-                    }) {
-                        Text("Show Discovered Devices")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white)
-                            .padding()
-                            .background(
-                                RoundedRectangle(cornerRadius: 15)
-                                    .fill(Color.green.opacity(0.3))
-                            )
-                    }
-                    .sheet(isPresented: $showingDiscoveredDevices) {
-                        DiscoveredDevicesView(bluetoothManager: bluetoothManager)
-                    }
-                    
                     Spacer()
+                    
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: Notification.Name("LocationChanged"))) { notification in
