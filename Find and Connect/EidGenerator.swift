@@ -17,6 +17,8 @@ class EidGenerator {
         eid = generateEid()  // Then generate in init
     }
     
+    
+    
     func getEid() -> String {
         return eid
     }

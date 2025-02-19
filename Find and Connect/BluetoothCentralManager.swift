@@ -184,16 +184,17 @@ class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDeleg
                     print("Skipped non-beacon with advertised services: \(advertisedServicesArray)")
                 }
             } else {
-                // Device scanning branch (as before)
+                // Device scanning branch
                 if advertisedServicesArray.contains(serviceUUID) {
+                    // Debug prints moved outside time check
                     let currentTime = Date().timeIntervalSince1970
                     if currentTime - lastPrintTime >= printInterval {
+                        for(key, value) in advertisementData {
+                            print("Key: \(key), Value: \(value)")
+                        }
                         if let fullName = peripheral.name {
-                            for(key, value) in advertisementData {
-                                print("Key: \(key), Value: \(value)")
-                            }
-//                            print("This is the advertisement data: \(advertisementData)")
-                            print("This is EID + locationID before parsing: \(fullName)")
+                            print("\n--- Advertisement Data ---")
+                            print("Peripheral name: \(fullName)")
                             let eid = String(fullName.prefix(23))
                             let locationID = String(fullName.dropFirst(23))
                             let locationName = self.getLocationName(locationID) ?? "Unknown Location"
@@ -213,6 +214,8 @@ class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDeleg
                             }
                             
                             lastPrintTime = currentTime
+                        } else {
+                            print("Name is nil")
                         }
                     }
                 } else {

@@ -86,9 +86,12 @@ class BluetoothPeripheralManager: NSObject, ObservableObject, CBPeripheralManage
         
         let advertisementData: [String: Any] = [
             CBAdvertisementDataServiceUUIDsKey: [serviceUUID],
-            CBAdvertisementDataLocalNameKey: localName,
-            CBAdvertisementDataIsConnectable: false
+            CBAdvertisementDataLocalNameKey: localName
         ]
+        
+        for(key, value) in advertisementData {
+            print("Key: \(key), Value: \(value)")
+        }
         
         peripheralManager.stopAdvertising()
         peripheralManager.startAdvertising(advertisementData)
