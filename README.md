@@ -1,7 +1,7 @@
 # Find and Connect – iOS Version
 
 ## Introduction  
-Find and Connect is a research project aimed at understanding human behavior and mobility patterns during physical events.  
+This research project aims to understand human behavior and mobility patterns during physical events.  
 It explores why people add others to their social networks and how groups form during an event.  
 The goal is to develop a **contact recommendation system** that seamlessly connects people from offline interactions to online networks.  
 
