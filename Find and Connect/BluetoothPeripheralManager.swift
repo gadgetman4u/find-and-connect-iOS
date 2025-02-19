@@ -82,7 +82,7 @@ class BluetoothPeripheralManager: NSObject, ObservableObject, CBPeripheralManage
         // Get location ID using helper function
         let locationID = locationToIDMap[currentLocation] ?? "0"
         let localName = eid + locationID
-        print(localName)
+        print("This is the advertising fullName: \(localName)")
         
         let advertisementData: [String: Any] = [
             CBAdvertisementDataServiceUUIDsKey: [serviceUUID],

@@ -18,6 +18,7 @@ struct HeardSetView: View {
                             .font(.system(size: 9, design: .monospaced))
                             .padding()
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
                     }
                 }
             }

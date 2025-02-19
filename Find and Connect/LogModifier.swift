@@ -100,5 +100,10 @@ class LogModifier {
     func printLogFilePath() {
         print("📂 \(isHeardSet ? "HeardSet" : "TellSet") log file location: \(logfileURL.path)")
     }
+    
+    func getLogFileURL() -> URL {
+        return logfileURL
+    }
+    
 }
 

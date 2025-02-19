@@ -95,17 +95,21 @@ class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDeleg
         // Start with room scanning
         scanForRooms()
         
-        // Setup timer to alternate between room and device scanning
         scanTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             
             print("Timer fired, isRoomScanActive: \(self.isRoomScanActive)")
+            print("Discovered beacons count: \(self.discoveredBeacons.count)")
             
             if self.isRoomScanActive {
                 if !self.discoveredBeacons.isEmpty {
+                    print("Switching to device scanning")
                     self.scanForDevices()
+                } else {
+                    print("No beacons discovered yet, staying in room scan mode")
                 }
             } else {
+                print("Switching back to room scanning")
                 self.scanForRooms()
             }
             
@@ -140,63 +144,79 @@ class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDeleg
     
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
                        advertisementData: [String : Any], rssi RSSI: NSNumber) {
-        
         if isScanning {
-            if isRoomScanActive {
-                // Handle room discovery
-                let locationId = peripheral.name ?? peripheral.identifier.uuidString
-                beaconRSSIMap[locationId] = RSSI
-                
-                print("Room Scan - Found beacon: \(locationId), RSSI: \(RSSI)")
-                print("Current discovered beacons: \(discoveredBeacons)")
-                
-                if let strongestBeacon = beaconRSSIMap.max(by: { $0.value.intValue < $1.value.intValue }) {
-                    DispatchQueue.main.async {
-                        self.lastRSSI = strongestBeacon.value
-                        
-                        if self.nearestBeaconId != strongestBeacon.key {
-                            self.nearestBeaconId = strongestBeacon.key
-                            self.currentLocationId = strongestBeacon.key
-                            NotificationCenter.default.post(
-                                name: Notification.Name("LocationChanged"),
-                                object: nil,
-                                userInfo: ["locationName": strongestBeacon.key]
-                            )
-                        }
-                        
-                        if !self.discoveredBeacons.contains(locationId) {
-                            self.discoveredBeacons.append(locationId)
-                        }
-                    }
-                }
-            } else { //Scanning for Devices
-                let currentTime = Date().timeIntervalSince1970
-                // Only print if 5 seconds have passed since last print
-                if currentTime - lastPrintTime >= printInterval {
-                    if let fullName = peripheral.name {
-                        let eid = String(fullName.prefix(23))  // Get EID (first 23 chars)
-                        let locationID = String(fullName.dropFirst(23))  // Get location ID
-                        let locationName = self.getLocationName(locationID) ?? "Unknown Location"
-                        
-                        // Only log if RSSI is strong enough and locations match
-                        if RSSI.intValue >= -83 && locationToIDMap[currentLocationId] == locationID {
-                            // Log to HeardSet without username
-                            heardSet.updateHeardSetLog(
-                                eid: eid,
-                                locationId: locationName,
-                                rssi: RSSI
-                            )
+            var advertisedServicesArray: [CBUUID] = []
+            if let advertisedServices = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
+                advertisedServicesArray = advertisedServices
+            }
+            
+            if self.isRoomScanActive {
+                // If the advertisement data doesn't include the service list,
+                // or if it does and it contains the beaconUUID, process it as a room beacon.
+                if advertisedServicesArray.isEmpty || advertisedServicesArray.contains(beaconUUID) {
+                    // Handle room discovery
+                    let locationId = peripheral.name ?? peripheral.identifier.uuidString
+                    beaconRSSIMap[locationId] = RSSI
+                    
+                    print("Room Scan - Found beacon: \(locationId), RSSI: \(RSSI)")
+                    print("Current discovered beacons: \(discoveredBeacons)")
+                    
+                    if let strongestBeacon = beaconRSSIMap.max(by: { $0.value.intValue < $1.value.intValue }) {
+                        DispatchQueue.main.async {
+                            self.lastRSSI = strongestBeacon.value
                             
-                            // Debug prints
-                            print("📱 Found nearby device: \(eid)")
-                            print("📍 Location Match: \(locationName)")
-                            print("📶 Strong RSSI: \(RSSI)")
-                        } else {
-                            print("Device skipped - RSSI: \(RSSI), Device Location: \(locationID), Current Location: \(locationToIDMap[currentLocationId] ?? "unknown")")
+                            if self.nearestBeaconId != strongestBeacon.key {
+                                self.nearestBeaconId = strongestBeacon.key
+                                self.currentLocationId = strongestBeacon.key
+                                NotificationCenter.default.post(
+                                    name: Notification.Name("LocationChanged"),
+                                    object: nil,
+                                    userInfo: ["locationName": strongestBeacon.key]
+                                )
+                            }
+                            
+                            if !self.discoveredBeacons.contains(locationId) {
+                                self.discoveredBeacons.append(locationId)
+                            }
                         }
-                        
-                        lastPrintTime = currentTime
                     }
+                } else {
+                    print("Skipped non-beacon with advertised services: \(advertisedServicesArray)")
+                }
+            } else {
+                // Device scanning branch (as before)
+                if advertisedServicesArray.contains(serviceUUID) {
+                    let currentTime = Date().timeIntervalSince1970
+                    if currentTime - lastPrintTime >= printInterval {
+                        if let fullName = peripheral.name {
+                            for(key, value) in advertisementData {
+                                print("Key: \(key), Value: \(value)")
+                            }
+//                            print("This is the advertisement data: \(advertisementData)")
+                            print("This is EID + locationID before parsing: \(fullName)")
+                            let eid = String(fullName.prefix(23))
+                            let locationID = String(fullName.dropFirst(23))
+                            let locationName = self.getLocationName(locationID) ?? "Unknown Location"
+                            
+                            if RSSI.intValue >= -83 && locationToIDMap[currentLocationId] == locationID {
+                                heardSet.updateHeardSetLog(
+                                    eid: eid,
+                                    locationId: locationName,
+                                    rssi: RSSI
+                                )
+                                
+                                print("📱 Found nearby device: \(eid)")
+                                print("📍 Location Match: \(locationName)")
+                                print("📶 Strong RSSI: \(RSSI)")
+                            } else {
+                                print("Device skipped - RSSI: \(RSSI), Device Location: \(locationID), Current Location: \(locationToIDMap[currentLocationId] ?? "unknown")")
+                            }
+                            
+                            lastPrintTime = currentTime
+                        }
+                    }
+                } else {
+                    print("Skipped non-device service: \(advertisedServicesArray)")
                 }
             }
         }
