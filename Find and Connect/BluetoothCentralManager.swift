@@ -56,6 +56,9 @@ class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDeleg
     private var lastPrintTime: TimeInterval = 0  // Add this property
     private let printInterval: TimeInterval = 5.0  // 5 seconds interval
     
+    // Add property for username
+    private var currentUsername: String = ""
+    
     override init() {
         super.init()
         centralManager = CBCentralManager(delegate: self, queue: nil)
@@ -199,11 +202,12 @@ class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDeleg
                             let locationID = String(fullName.dropFirst(23))
                             let locationName = self.getLocationName(locationID) ?? "Unknown Location"
                             
-                            if RSSI.intValue >= -83 && locationToIDMap[currentLocationId] == locationID {
+                            if RSSI.intValue >= -70 && locationToIDMap[currentLocationId] == locationID {
                                 heardSet.updateHeardSetLog(
                                     eid: eid,
                                     locationId: locationName,
-                                    rssi: RSSI
+                                    rssi: RSSI,
+                                    username: self.currentUsername
                                 )
                                 
                                 print("📱 Found nearby device: \(eid)")
@@ -243,5 +247,10 @@ class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDeleg
     
     deinit {
         stopScanning()
+    }
+    
+    // Add method to set username
+    func setUsername(_ username: String) {
+        self.currentUsername = username
     }
 } 

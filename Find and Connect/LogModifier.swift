@@ -50,17 +50,18 @@ class LogModifier {
         let microseconds = String(format: "%.6f", timestamp.truncatingRemainder(dividingBy: 1)).dropFirst()
         let preciseTime = timeString + microseconds
         
-        let logEntry = "\n\(preciseTime),\(eid),\(username),\(locationId)\n"
+        let logEntry = "\(preciseTime),\(eid),\(username),\(locationId)\n"
         
         writeToFile(logEntry)
     }
     
     // HeardSet update and write functions
-    func updateHeardSetLog(eid: String, locationId: String, rssi: NSNumber) {
+    func updateHeardSetLog(eid: String, locationId: String, rssi: NSNumber, username: String) {
         self.timestamp = Date().timeIntervalSince1970
         self.eid = eid
         self.locationId = locationId
         self.rssi = rssi
+        self.username = username
         
         writeHeardSetToCSV()
     }
@@ -72,8 +73,8 @@ class LogModifier {
         let microseconds = String(format: "%.6f", timestamp.truncatingRemainder(dividingBy: 1)).dropFirst()
         let preciseTime = timeString + microseconds
         
-        // Format: timestamp,eid,location,rssi
-        let logEntry = "\n\(preciseTime),\(eid),\(locationId),\(rssi?.stringValue ?? "N/A")\n"
+        // Format: timestamp,eid,location,rssi,username
+        let logEntry = "\n\(preciseTime),\(eid),\(locationId),\(rssi?.stringValue ?? "N/A"),\(username)\n"
         
         writeToFile(logEntry)
     }

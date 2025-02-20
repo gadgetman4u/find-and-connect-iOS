@@ -15,7 +15,7 @@ struct HeardSetView: View {
                 } else {
                     ScrollView {
                         Text(logContents)
-                            .font(.system(size: 9, design: .monospaced))
+                            .font(.system(size: 8, design: .monospaced))
                             .padding()
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .textSelection(.enabled)

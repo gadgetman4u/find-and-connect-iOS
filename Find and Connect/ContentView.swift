@@ -147,6 +147,9 @@ struct ContentView: View {
                 peripheralManager.stopAdvertising()
                 sendLocationChangeNotification(newLocation: "Out of range")
             }
+            .onAppear {
+                bluetoothManager.setUsername(username)
+            }
         }
     }
     
