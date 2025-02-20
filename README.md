@@ -37,6 +37,11 @@ The goal is to develop a **contact recommendation system** that seamlessly conne
 
 ## 📝 Update Log
 
+### 📅 February 20, 2025  
+- Added username to **heardSet**
+- Changed RSSI value for more accurate encounter detection
+- Integrating encounter script into Swift
+
 ### 📅 February 18, 2025  
 - Completed **heardSet** functionality.  
 - Encountered bugs where **heardSet** works on one phone but not another.  
