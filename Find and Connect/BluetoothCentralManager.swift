@@ -16,8 +16,7 @@ class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDeleg
         "DPI_2030_Kitchen": "3",
         "DPI_2017_Conf": "4",
         "DPI_2006_Conf": "5",
-        "DPI_2005_Conf_1": "6",
-        "DPI_2005_Conf_2": "6",
+        "DPI_2005_Conf": "6",
         "DPI_2054_Kitchen": "7",
         "DPI_20_2049": "8",
         "DPI_2043": "9",
@@ -158,7 +157,7 @@ class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDeleg
                 // or if it does and it contains the beaconUUID, process it as a room beacon.
                 if advertisedServicesArray.isEmpty || advertisedServicesArray.contains(beaconUUID) {
                     // Handle room discovery
-                    let locationId = peripheral.name ?? peripheral.identifier.uuidString
+                    let locationId = peripheral.name ?? ""
                     beaconRSSIMap[locationId] = RSSI
                     
                     print("Room Scan - Found beacon: \(locationId), RSSI: \(RSSI)")
@@ -202,7 +201,7 @@ class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDeleg
                             let locationID = String(fullName.dropFirst(23))
                             let locationName = self.getLocationName(locationID) ?? "Unknown Location"
                             
-                            if RSSI.intValue >= -70 && locationToIDMap[currentLocationId] == locationID {
+                            if RSSI.intValue >= -50 && locationToIDMap[currentLocationId] == locationID {
                                 heardSet.updateHeardSetLog(
                                     eid: eid,
                                     locationId: locationName,
