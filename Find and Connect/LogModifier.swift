@@ -74,7 +74,7 @@ class LogModifier {
         let preciseTime = timeString + microseconds
         
         // Format: timestamp,eid,location,rssi,username
-        let logEntry = "\n\(preciseTime),\(eid),\(locationId),\(rssi?.stringValue ?? "N/A"),\(username)\n"
+        let logEntry = "\(preciseTime),\(eid),\(locationId),\(rssi?.stringValue ?? "N/A"),\(username)\n"
         
         writeToFile(logEntry)
     }
