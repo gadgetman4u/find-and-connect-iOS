@@ -158,4 +158,14 @@ class BluetoothPeripheralManager: NSObject, ObservableObject, CBPeripheralManage
         logTimer?.invalidate()
         stopAdvertising()
     }
+
+    func getTellLog() -> String {
+        // Return the tell log content
+        // Replace this with your actual implementation to access the log
+        if let logContent = self.tellSet.readLogFile() {
+            return logContent
+        } else {
+            return "No tell log available"
+        }
+    }
 } 

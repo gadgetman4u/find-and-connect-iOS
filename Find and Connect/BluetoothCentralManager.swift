@@ -252,4 +252,12 @@ class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDeleg
     func setUsername(_ username: String) {
         self.currentUsername = username
     }
-} 
+    
+    func getHeardLog() -> String {
+        if let logContent = self.heardSet.readLogFile() {
+            return logContent
+        } else {
+            return "No tell log available"
+        }
+    }
+}
