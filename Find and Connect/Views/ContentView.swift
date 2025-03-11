@@ -21,7 +21,7 @@ struct ContentView: View {
     @State private var showingHeardSetLog = false
     @State private var showingDiscoveredDevices = false
     @State private var showingVersionInfo = false
-    let appVersion = "1.0" // App version for version control
+    let appVersion = "1.1" // App version for version control
     
     let center = UNUserNotificationCenter.current()
     

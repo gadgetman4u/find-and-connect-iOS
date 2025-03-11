@@ -157,7 +157,7 @@ class BluetoothCentralManager: NSObject, ObservableObject, CBCentralManagerDeleg
                 // or if it does and it contains the beaconUUID, process it as a room beacon.
                 if advertisedServicesArray.isEmpty || advertisedServicesArray.contains(beaconUUID) {
                     // Handle room discovery
-                    let locationId = peripheral.name ?? ""
+                    let locationId = (advertisementData[CBAdvertisementDataLocalNameKey] as? String) ?? ""
                     beaconRSSIMap[locationId] = RSSI
                     
                     print("Room Scan - Found beacon: \(locationId), RSSI: \(RSSI)")
