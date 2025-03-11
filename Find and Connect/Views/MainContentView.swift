@@ -179,6 +179,7 @@ struct MainContentView: View {
         .sheet(isPresented: $isShareSheetPresented) {
             ShareSheet(activityItems: [shareContent])
         }
+        // Add alert for version info
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 isViewLoaded = true

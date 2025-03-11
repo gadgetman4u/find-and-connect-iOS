@@ -20,6 +20,8 @@ struct ContentView: View {
     @State private var showingTellSetLog = false
     @State private var showingHeardSetLog = false
     @State private var showingDiscoveredDevices = false
+    @State private var showingVersionInfo = false
+    let appVersion = "1.0" // App version for version control
     
     let center = UNUserNotificationCenter.current()
     
@@ -135,6 +137,18 @@ struct ContentView: View {
                     }
                     Spacer()
                     
+                    HStack {
+                        Spacer()
+                        Button(action: {
+                            showingVersionInfo = true
+                        }) {
+                            Image(systemName: "info.circle")
+                                .font(.system(size: 20))
+                                .foregroundColor(.white)
+                                .padding()
+                        }
+                    }
+                    .padding(.horizontal)
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: Notification.Name("LocationChanged"))) { notification in
@@ -149,6 +163,11 @@ struct ContentView: View {
             }
             .onAppear {
                 bluetoothManager.setUsername(username)
+            }
+            .alert("App Version", isPresented: $showingVersionInfo) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Find and Connect v\(appVersion)")
             }
         }
     }
