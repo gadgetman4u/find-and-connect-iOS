@@ -1,11 +1,11 @@
 import SwiftUI
 
 struct BluetoothContentView: View {
-    @ObservedObject var bluetoothManager: BluetoothCentralManager
+    @ObservedObject var bluetoothManager: BeaconScanManager
     @Binding var isDeviceListExpanded: Bool
     
     var body: some View {
-        VStack {
+        VStack(spacing: 15) {
             Button(action: {
                 withAnimation {
                     isDeviceListExpanded.toggle()
@@ -31,20 +31,48 @@ struct BluetoothContentView: View {
             
             if isDeviceListExpanded {
                 ScrollView {
-                    LazyVStack(spacing: 10) {
+                    LazyVStack(spacing: 15) {
                         ForEach(bluetoothManager.discoveredBeacons, id: \.self) { beacon in
                             HStack {
-                                Image(systemName: "wave.3.right")
-                                    .foregroundColor(.blue)
-                                Text(beacon)
-                                    .font(.system(size: 14, design: .monospaced))
+                                VStack(alignment: .leading, spacing: 5) {
+                                    HStack {
+                                        Image(systemName: "wave.3.right")
+                                            .foregroundColor(.blue)
+                                        Text(beacon)
+                                            .font(.system(size: 14, weight: .medium, design: .monospaced))
+                                    }
+                                }
+                                
                                 Spacer()
-                                if beacon == bluetoothManager.nearestBeaconId {
-                                    Image(systemName: "star.fill")
-                                        .foregroundColor(.yellow)
+                                
+                                HStack(spacing: 15) {
+                                    if let rssi = bluetoothManager.getRSSI(for: beacon) {
+                                        HStack(spacing: 2) {
+                                            Image(systemName: "wifi")
+                                                .foregroundColor(.blue)
+                                            Text("\(rssi) dBm")
+                                                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                                .foregroundColor(.blue)
+                                        }
+                                        .padding(6)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 4)
+                                                .fill(Color.blue.opacity(0.1))
+                                        )
+                                    } else {
+                                        Text("No RSSI")
+                                            .font(.system(size: 10))
+                                            .foregroundColor(.gray)
+                                    }
+                                    
+                                    if beacon == bluetoothManager.nearestBeaconId {
+                                        Image(systemName: "star.fill")
+                                            .foregroundColor(.yellow)
+                                            .font(.system(size: 16))
+                                    }
                                 }
                             }
-                            .padding()
+                            .padding(12)
                             .background(
                                 RoundedRectangle(cornerRadius: 10)
                                     .fill(Color.white.opacity(0.9))
@@ -53,7 +81,8 @@ struct BluetoothContentView: View {
                         }
                     }
                 }
-                .frame(maxHeight: 300)
+                .frame(maxHeight: 400)
+                .padding(.bottom, 10)
             }
         }
     }

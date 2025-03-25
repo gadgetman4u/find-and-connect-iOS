@@ -12,8 +12,8 @@ import UIKit
 import UserNotifications
 
 struct ContentView: View {
-    @StateObject private var bluetoothManager = BluetoothCentralManager()
-    @StateObject private var peripheralManager = BluetoothPeripheralManager()
+    @StateObject private var beaconManager = BeaconScanManager()
+    @StateObject private var deviceManager = DeviceScanManager()
     @State private var isDeviceListExpanded = false
     @AppStorage("isLoggedIn") private var isLoggedIn = false
     @AppStorage("username") private var username = ""
@@ -21,7 +21,7 @@ struct ContentView: View {
     @State private var showingHeardSetLog = false
     @State private var showingDiscoveredDevices = false
     @State private var showingVersionInfo = false
-    let appVersion = "1.1" // App version for version control
+    let appVersion = "1.2" // App version for version control
     
     let center = UNUserNotificationCenter.current()
     
@@ -60,7 +60,7 @@ struct ContentView: View {
                     .padding(.horizontal)
                     .padding(.top, 30)
                     
-                    if !bluetoothManager.isBluetoothOn {
+                    if !beaconManager.isBluetoothOn {
                         // Bluetooth disabled view
                         VStack(spacing: 15) {
                             Image(systemName: "bluetooth.slash")
@@ -78,8 +78,8 @@ struct ContentView: View {
                         )
                     } else {
                         MainContentView(
-                            bluetoothManager: bluetoothManager,
-                            peripheralManager: peripheralManager,
+                            beaconManager: beaconManager,
+                            deviceManager: deviceManager,
                             isDeviceListExpanded: $isDeviceListExpanded,
                             showingTellSetLog: $showingTellSetLog,
                             showingHeardSetLog: $showingHeardSetLog,
@@ -101,13 +101,13 @@ struct ContentView: View {
                             )
                     }
                     .sheet(isPresented: $showingTellSetLog) {
-                        if let logContents = peripheralManager.tellSet.readLogFile() {
+                        if let logContents = deviceManager.tellSet.readLogFile() {
                             TellSetView(logContents: logContents, onClear: {
-                                peripheralManager.tellSet.clearLogFile()
+                                deviceManager.tellSet.clearLogFile()
                             })
                         } else {
                             TellSetView(logContents: "Error reading log file", onClear: {
-                                peripheralManager.tellSet.clearLogFile()
+                                deviceManager.tellSet.clearLogFile()
                             })
                         }
                     }
@@ -125,13 +125,13 @@ struct ContentView: View {
                             )
                     }
                     .sheet(isPresented: $showingHeardSetLog) {
-                        if let logContents = bluetoothManager.heardSet.readLogFile() {
+                        if let logContents = deviceManager.heardSet.readLogFile() {
                             HeardSetView(logContents: logContents, onClear: {
-                                bluetoothManager.heardSet.clearLogFile()
+                                deviceManager.heardSet.clearLogFile()
                             })
                         } else {
                             HeardSetView(logContents: "Error reading log file", onClear: {
-                                bluetoothManager.heardSet.clearLogFile()
+                                deviceManager.heardSet.clearLogFile()
                             })
                         }
                     }
@@ -153,16 +153,29 @@ struct ContentView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: Notification.Name("LocationChanged"))) { notification in
                 if let locationName = notification.userInfo?["locationName"] as? String {
-                    peripheralManager.startAdvertising(username: username, locationName: locationName)
+                    deviceManager.startAdvertising(username: username, locationName: locationName)
                     sendLocationChangeNotification(newLocation: locationName)
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: Notification.Name("OutOfRange"))) { _ in
-                peripheralManager.stopAdvertising()
+                // The deviceManager will handle stopping advertising internally when it receives the OutOfRange notification
                 sendLocationChangeNotification(newLocation: "Out of range")
             }
             .onAppear {
-                bluetoothManager.setUsername(username)
+                // Set username for both managers
+                beaconManager.setUsername(username)
+                deviceManager.setUsername(username)
+                
+                // Start both scanning processes
+                beaconManager.startScanning()
+                deviceManager.startScanning()
+                
+                // Request notification permissions if needed
+                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { success, error in
+                    if let error = error {
+                        print("Notification permission error: \(error)")
+                    }
+                }
             }
             .alert("App Version", isPresented: $showingVersionInfo) {
                 Button("OK", role: .cancel) { }
