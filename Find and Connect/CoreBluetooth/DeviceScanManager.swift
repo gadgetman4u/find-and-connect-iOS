@@ -1,25 +1,20 @@
 import Foundation
 import CoreBluetooth
 
-class DeviceScanManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralManagerDelegate {
+class DeviceScanManager: NSObject, ObservableObject, CBCentralManagerDelegate {
     @Published var isBluetoothOn = false
     @Published var isScanning = false
-    @Published var isAdvertising = false
     
     // Current location info - will be updated from notifications
     private var currentLocationId: String = ""
     private var currentUsername: String = ""
     
-    // LogModifiers for both heard and tell logs
+    // LogModifiers for heard logs
     var heardSet: LogModifier { _heardSet }
     private var _heardSet = LogModifier(isHeardSet: true)
     
-    var tellSet: LogModifier { _tellSet }
-    private var _tellSet = LogModifier(isHeardSet: false)
-    
     // Managers
     private var centralManager: CBCentralManager!
-    private var peripheralManager: CBPeripheralManager!
     
     // UUIDs
     private let serviceUUID = CBUUID(string: "09bda1b5-41fa-3620-a65b-de20ab32db77") // For finding other devices
@@ -27,10 +22,6 @@ class DeviceScanManager: NSObject, ObservableObject, CBCentralManagerDelegate, C
     // For logging
     private var lastPrintTime: TimeInterval = 0
     private let printInterval: TimeInterval = 10.0  // 10 seconds interval
-    
-    // Peripheral manager properties
-    private var advertisingData: [String: Any]?
-    private var service: CBMutableService?
     
     // Forward mapping (name to ID)
     private let locationToIDMap: [String: String] = [
@@ -59,7 +50,6 @@ class DeviceScanManager: NSObject, ObservableObject, CBCentralManagerDelegate, C
     override init() {
         super.init()
         centralManager = CBCentralManager(delegate: self, queue: nil)
-        peripheralManager = CBPeripheralManager(delegate: self, queue: nil)
         setupNotificationObservers()
     }
     
@@ -131,78 +121,6 @@ class DeviceScanManager: NSObject, ObservableObject, CBCentralManagerDelegate, C
         }
     }
     
-    // MARK: - CBPeripheralManagerDelegate
-    
-    func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
-        DispatchQueue.main.async {
-            switch peripheral.state {
-            case .poweredOn:
-                print("Peripheral Manager: Bluetooth powered on")
-                self.isBluetoothOn = true
-                // If we have advertising data ready, start advertising again
-                if let data = self.advertisingData {
-                    self.startAdvertisingWithData(data)
-                }
-            case .poweredOff:
-                print("Peripheral Manager: Bluetooth powered off")
-                self.isBluetoothOn = false
-                self.stopAdvertising()
-            case .unsupported:
-                print("Peripheral Manager: Bluetooth unsupported")
-            case .unauthorized:
-                print("Peripheral Manager: Bluetooth unauthorized")
-            case .resetting:
-                print("Peripheral Manager: Bluetooth resetting")
-            case .unknown:
-                print("Peripheral Manager: Bluetooth unknown state")
-            @unknown default:
-                print("Peripheral Manager: Bluetooth unknown state")
-            }
-        }
-    }
-    
-    func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
-                        advertisementData: [String : Any], rssi RSSI: NSNumber) {
-        if isScanning {
-            var advertisedServicesArray: [CBUUID] = []
-            if let advertisedServices = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
-                advertisedServicesArray = advertisedServices
-            }
-            
-            // Only process devices that advertise our service UUID
-            if advertisedServicesArray.contains(serviceUUID) {
-                let currentTime = Date().timeIntervalSince1970
-                if currentTime - lastPrintTime >= printInterval {
-                    if let fullName = peripheral.name {
-                        print("\nDevice Scanner --- Advertisement Data ---")
-                        print("Peripheral name: \(fullName)")
-                        
-                        let eid = String(fullName.prefix(23))
-                        let locationID = String(fullName.dropFirst(23))
-                        let locationName = self.getLocationName(locationID) ?? "Unknown Location"
-                        
-                        if RSSI.intValue >= -50 && locationToIDMap[currentLocationId] == locationID {
-                            heardSet.updateHeardSetLog(
-                                eid: eid,
-                                locationId: locationName,
-                                rssi: RSSI,
-                                username: self.currentUsername
-                            )
-                            
-                            print("📱 Found nearby device: \(eid)")
-                            print("📍 Location Match: \(locationName)")
-                            print("📶 Strong RSSI: \(RSSI)")
-                        } else {
-                            print("Device skipped - RSSI: \(RSSI), Device Location: \(locationID), Current Location: \(locationToIDMap[currentLocationId] ?? "unknown")")
-                        }
-                        
-                        lastPrintTime = currentTime
-                    }
-                }
-            }
-        }
-    }
-    
     // MARK: - Device Scanning Methods
     
     func startScanning() {
@@ -228,61 +146,6 @@ class DeviceScanManager: NSObject, ObservableObject, CBCentralManagerDelegate, C
         heardSet.clearLogFile()  // Clear heardSet when stopping
     }
     
-    // MARK: - Peripheral Advertising Methods
-    
-    func startAdvertising(username: String, locationName: String) {
-        guard let locationID = getLocationID(locationName) else {
-            print("❌ Invalid location: \(locationName)")
-            return
-        }
-        
-        let eidGenerator = EidGenerator()
-        let deviceEID = eidGenerator.generateEid()
-        let deviceName = deviceEID + locationID
-        
-        // Log to the TellSet
-        tellSet.updateTellSetLog(
-            eid: deviceEID,
-            username: username,
-            locationId: locationName
-        )
-        
-        print("Starting to advertise as \(deviceName)")
-        
-        let advertisingData: [String: Any] = [
-            CBAdvertisementDataServiceUUIDsKey: [serviceUUID],
-            CBAdvertisementDataLocalNameKey: deviceName
-        ]
-        
-        self.advertisingData = advertisingData
-        startAdvertisingWithData(advertisingData)
-    }
-    
-    private func startAdvertisingWithData(_ data: [String: Any]) {
-        guard peripheralManager.state == .poweredOn else {
-            print("Cannot start advertising: Bluetooth not powered on")
-            return
-        }
-        
-        // Create a service and characteristics
-        let service = CBMutableService(type: serviceUUID, primary: true)
-        self.service = service
-        
-        // Add the service to the peripheral manager
-        peripheralManager.add(service)
-        
-        // Start advertising
-        peripheralManager.startAdvertising(data)
-        isAdvertising = true
-        print("📢 Started advertising")
-    }
-    
-    func stopAdvertising() {
-        peripheralManager.stopAdvertising()
-        isAdvertising = false
-        print("Stopped advertising")
-    }
-    
     // MARK: - User management
     
     func setUsername(_ username: String) {
@@ -290,6 +153,7 @@ class DeviceScanManager: NSObject, ObservableObject, CBCentralManagerDelegate, C
         print("Device Scanner: Username set to \(username)")
     }
     
+    // For sharing
     func getHeardLog() -> String {
         if let logContent = self.heardSet.readLogFile() {
             return logContent
@@ -298,17 +162,8 @@ class DeviceScanManager: NSObject, ObservableObject, CBCentralManagerDelegate, C
         }
     }
     
-    func getTellLog() -> String {
-        if let logContent = self.tellSet.readLogFile() {
-            return logContent
-        } else {
-            return "No tell log available"
-        }
-    }
-    
     deinit {
         stopScanning()
-        stopAdvertising()
         NotificationCenter.default.removeObserver(self)
     }
 } 

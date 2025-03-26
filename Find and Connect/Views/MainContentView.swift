@@ -3,6 +3,7 @@ import SwiftUI
 struct MainContentView: View {
     @ObservedObject var beaconManager: BeaconScanManager
     @ObservedObject var deviceManager: DeviceScanManager
+    @ObservedObject var peripheralManager: BluetoothPeripheralManager
     @State private var showingLocationSheet = false
     @Binding var isDeviceListExpanded: Bool
     @Binding var showingTellSetLog: Bool
@@ -181,7 +182,7 @@ struct MainContentView: View {
     }
     
     private func getTellSetLog() -> String {
-        return deviceManager.getTellLog()
+        return peripheralManager.getTellLog()
     }
 }
 
