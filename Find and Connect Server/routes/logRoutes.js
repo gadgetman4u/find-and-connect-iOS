@@ -2,43 +2,66 @@ const express = require('express');
 const router = express.Router();
 const upload = require('../middleware/upload');
 const Log = require('../models/Log');
+const HeardLog = require('../models/HeardLog');
+const TellLog = require('../models/TellLog');
 const path = require('path');
 const fs = require('fs');
 const { processLogs } = require('../utils/encounterDetector');
 
-// Upload log file
+//Upload log file
 router.post('/upload', upload.single('file'), async (req, res) => {
+  console.log("==== ROUTE REACHED ====");
+  console.log("Body:", JSON.stringify(req.body, null, 2));
+  console.log("File:", req.file ? "Present" : "Missing");
+  
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    // Get user ID and log type from request
-    const { userId, username, logType } = req.body;
+    // Get user type and log type from request
+    const { username, logType } = req.body;
     
-    if (!userId || !logType || !username) {
-      return res.status(400).json({ message: 'User ID, username, and log type are required' });
+    if (!username || !logType) {
+      return res.status(400).json({ message: 'Username and log type are required' });
     }
     
     if (logType !== 'heardLog' && logType !== 'tellLog') {
       return res.status(400).json({ message: 'Log type must be heardLog or tellLog' });
     }
 
-    // Create new log document in MongoDB
+    // Create log document in the generic Log collection
     const log = new Log({
       filename: req.file.filename,
       originalName: req.file.originalname,
       path: req.file.path,
       size: req.file.size,
-      userId,
-      username,
+      username: username,
       logType
     });
 
     await log.save();
     
-    // Trigger encounter detection in the background
-    processLogs(log._id);
+    // Also save to the specific collection based on type
+    if (logType === 'heardLog') {
+      const heardLog = new HeardLog({
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        path: req.file.path,
+        size: req.file.size,
+        username: username,
+      });
+      await heardLog.save();
+    } else {
+      const tellLog = new TellLog({
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        path: req.file.path,
+        size: req.file.size,
+        username: username
+      });
+      await tellLog.save();
+    }
     
     res.status(201).json({
       message: 'File uploaded successfully',
@@ -47,7 +70,6 @@ router.post('/upload', upload.single('file'), async (req, res) => {
         filename: log.filename,
         originalName: log.originalName,
         size: log.size,
-        userId: log.userId,
         username: log.username,
         logType: log.logType
       }
@@ -59,9 +81,9 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 });
 
 // Get logs by user ID
-router.get('/user/:userId', async (req, res) => {
+router.get('/user/:username', async (req, res) => {
   try {
-    const logs = await Log.find({ userId: req.params.userId }).sort({ uploadDate: -1 });
+    const logs = await Log.find({ username: req.params.username }).sort({ uploadDate: -1 });
     res.status(200).json({ logs });
   } catch (error) {
     console.error('Error fetching logs:', error);
@@ -99,6 +121,218 @@ router.get('/download/:id', async (req, res) => {
     res.download(filePath, log.originalName);
   } catch (error) {
     console.error('Download error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Add this new test route
+router.post('/test-upload', upload.single('file'), (req, res) => {
+  console.log("Test upload route reached");
+  console.log("Body:", req.body);
+  console.log("File:", req.file);
+  
+  res.status(200).json({
+    message: 'Test route working',
+    body: req.body,
+    file: req.file ? 'File received' : 'No file'
+  });
+});
+
+// Delete a specific log by ID
+router.delete('/:id', async (req, res) => {
+  try {
+    const logId = req.params.id;
+    
+    // Find the log first to get the file path
+    const log = await Log.findById(logId);
+    
+    if (!log) {
+      return res.status(404).json({ message: 'Log not found' });
+    }
+    
+    // Store the file path before deleting the log
+    const filePath = log.path;
+    
+    // Delete from database
+    await Log.findByIdAndDelete(logId);
+    
+    // Delete the physical file
+    if (filePath && fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      console.log(`Deleted file: ${filePath}`);
+    }
+    
+    return res.status(200).json({ 
+      message: 'Log and file deleted successfully',
+      deletedLog: log
+    });
+  } catch (error) {
+    console.error('Delete error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Delete all logs for a specific user
+router.delete('/user/:username', async (req, res) => {
+  try {
+    const username = req.params.username;
+    
+    // Find all logs for this user first
+    const logs = await Log.find({ username });
+    
+    // Delete physical files
+    let filesDeleted = 0;
+    for (const log of logs) {
+      if (log.path && fs.existsSync(log.path)) {
+        fs.unlinkSync(log.path);
+        filesDeleted++;
+      }
+    }
+    
+    // Delete from database
+    const result = await Log.deleteMany({ username });
+    
+    res.status(200).json({ 
+      message: `Deleted ${result.deletedCount} logs and ${filesDeleted} files for user ${username}`,
+      count: result.deletedCount,
+      filesDeleted
+    });
+  } catch (error) {
+    console.error('Delete error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Delete all logs of a specific type
+router.delete('/type/:logType', async (req, res) => {
+  try {
+    const logType = req.params.logType;
+    
+    if (logType !== 'heardLog' && logType !== 'tellLog') {
+      return res.status(400).json({ message: 'Log type must be heardLog or tellLog' });
+    }
+    
+    // Find all logs of this type first
+    const logs = await Log.find({ logType });
+    
+    // Delete physical files
+    let filesDeleted = 0;
+    for (const log of logs) {
+      if (log.path && fs.existsSync(log.path)) {
+        fs.unlinkSync(log.path);
+        filesDeleted++;
+      }
+    }
+    
+    // Delete from database
+    const result = await Log.deleteMany({ logType });
+    
+    res.status(200).json({ 
+      message: `Deleted ${result.deletedCount} ${logType}s and ${filesDeleted} files`,
+      count: result.deletedCount,
+      filesDeleted
+    });
+  } catch (error) {
+    console.error('Delete error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Delete all logs
+router.delete('/', async (req, res) => {
+  try {
+    // Find all logs first
+    const logs = await Log.find({});
+    
+    // Delete physical files
+    let filesDeleted = 0;
+    for (const log of logs) {
+      if (log.path && fs.existsSync(log.path)) {
+        fs.unlinkSync(log.path);
+        filesDeleted++;
+      }
+    }
+    
+    // Delete from database
+    const result = await Log.deleteMany({});
+    
+    res.status(200).json({ 
+      message: `Deleted ${result.deletedCount} logs and ${filesDeleted} files`,
+      count: result.deletedCount,
+      filesDeleted
+    });
+  } catch (error) {
+    console.error('Delete error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Process logs between specific users
+router.post('/process-encounters', async (req, res) => {
+  try {
+    const { username, targetUsername } = req.body;
+    
+    if (!username) {
+      return res.status(400).json({ message: 'Username is required' });
+    }
+    
+    // Find all unprocessed logs for this user
+    const userLogs = await Log.find({ 
+      username,
+      processed: false
+    });
+    
+    console.log(`Found ${userLogs.length} unprocessed logs for user ${username}`);
+    
+    // Process each log against the target user
+    let totalEncounters = 0;
+    for (const log of userLogs) {
+      const encountersFound = await processLogs(
+        log._id, 
+        log.logType, 
+        targetUsername
+      );
+      totalEncounters += encountersFound;
+    }
+    
+    res.status(200).json({
+      message: `Processed ${userLogs.length} logs for encounters`,
+      encounters: totalEncounters
+    });
+  } catch (error) {
+    console.error('Process error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Test Python encounter algorithm
+router.post('/test-python-algorithm', async (req, res) => {
+  try {
+    const { heardLogId, tellLogId } = req.body;
+    
+    if (!heardLogId || !tellLogId) {
+      return res.status(400).json({ message: 'Both heardLogId and tellLogId are required' });
+    }
+    
+    // Get logs
+    const heardLog = await Log.findById(heardLogId);
+    const tellLog = await Log.findById(tellLogId);
+    
+    if (!heardLog || !tellLog) {
+      return res.status(404).json({ message: 'One or both logs not found' });
+    }
+    
+    // Check for encounters using Python
+    const { checkForEncountersPython } = require('../utils/encounterDetector');
+    const encounters = await checkForEncountersPython(heardLog, tellLog);
+    
+    res.status(200).json({
+      message: 'Python algorithm test completed',
+      encounters: encounters,
+      total: encounters.length
+    });
+  } catch (error) {
+    console.error('Python algorithm test error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 
-//Log file schema
-const LogSchema = new mongoose.Schema({
+const HeardLogSchema = new mongoose.Schema({
   filename: {
     type: String,
     required: true
@@ -21,11 +20,6 @@ const LogSchema = new mongoose.Schema({
     required: true,
     index: true
   },
-  logType: {
-    type: String,
-    enum: ['heardLog', 'tellLog'],
-    required: true
-  },
   uploadDate: {
     type: Date,
     default: Date.now
@@ -36,4 +30,4 @@ const LogSchema = new mongoose.Schema({
   }
 });
 
-module.exports = mongoose.model('Log', LogSchema); 
+module.exports = mongoose.model('HeardLog', HeardLogSchema); 

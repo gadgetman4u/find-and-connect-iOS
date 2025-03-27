@@ -140,6 +140,48 @@ class DeviceScanManager: NSObject, ObservableObject, CBCentralManagerDelegate {
         )
     }
     
+    func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
+                            advertisementData: [String : Any], rssi RSSI: NSNumber) {
+        if isScanning {
+            var advertisedServicesArray: [CBUUID] = []
+            if let advertisedServices = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
+                advertisedServicesArray = advertisedServices
+            }
+            
+            // Only process devices that advertise our service UUID
+            if advertisedServicesArray.contains(serviceUUID) {
+                let currentTime = Date().timeIntervalSince1970
+                if currentTime - lastPrintTime >= printInterval {
+                    if let fullName = peripheral.name {
+                        print("\nDevice Scanner --- Advertisement Data ---")
+                        print("Peripheral name: \(fullName)")
+                        
+                        let eid = String(fullName.prefix(23))
+                        let locationID = String(fullName.dropFirst(23))
+                        let locationName = self.getLocationName(locationID) ?? "Unknown Location"
+                        
+                        if RSSI.intValue >= -60 && locationToIDMap[currentLocationId] == locationID {
+                            heardSet.updateHeardSetLog(
+                                eid: eid,
+                                locationId: locationName,
+                                rssi: RSSI,
+                                username: self.currentUsername
+                            )
+                            
+                            print("📱 Found nearby device: \(eid)")
+                            print("📍 Location Match: \(locationName)")
+                            print("📶 Strong RSSI: \(RSSI)")
+                        } else {
+                            print("Device skipped - RSSI: \(RSSI), Device Location: \(locationID), Current Location: \(locationToIDMap[currentLocationId] ?? "unknown")")
+                        }
+                        
+                        lastPrintTime = currentTime
+                    }
+                }
+            }
+        }
+    }
+    
     func stopScanning() {
         isScanning = false
         centralManager.stopScan()

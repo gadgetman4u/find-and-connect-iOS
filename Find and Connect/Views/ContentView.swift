@@ -22,7 +22,7 @@ struct ContentView: View {
     @State private var showingHeardSetLog = false
     @State private var showingDiscoveredDevices = false
     @State private var showingVersionInfo = false
-    let appVersion: String
+    let appVersion: String 
     
     let center = UNUserNotificationCenter.current()
     
@@ -88,55 +88,7 @@ struct ContentView: View {
                             username: username
                         )
                     }
-                    
-                    
-                    Button(action: {
-                        showingTellSetLog = true
-                    }) {
-                        Text("View TellSet Log")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white)
-                            .padding()
-                            .background(
-                                RoundedRectangle(cornerRadius: 15)
-                                    .fill(Color.blue.opacity(0.3))
-                            )
-                    }
-                    .sheet(isPresented: $showingTellSetLog) {
-                        if let logContents = peripheralManager.tellSet.readLogFile() {
-                            TellSetView(logContents: logContents, onClear: {
-                                peripheralManager.tellSet.clearLogFile()
-                            })
-                        } else {
-                            TellSetView(logContents: "Error reading log file", onClear: {
-                                peripheralManager.tellSet.clearLogFile()
-                            })
-                        }
-                    }
-                    
-                    Button(action: {
-                        showingHeardSetLog = true
-                    }) {
-                        Text("View HeardSet Log")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white)
-                            .padding()
-                            .background(
-                                RoundedRectangle(cornerRadius: 15)
-                                    .fill(Color.purple.opacity(0.3))
-                            )
-                    }
-                    .sheet(isPresented: $showingHeardSetLog) {
-                        if let logContents = deviceManager.heardSet.readLogFile() {
-                            HeardSetView(logContents: logContents, onClear: {
-                                deviceManager.heardSet.clearLogFile()
-                            })
-                        } else {
-                            HeardSetView(logContents: "Error reading log file", onClear: {
-                                deviceManager.heardSet.clearLogFile()
-                            })
-                        }
-                    }
+
                     Spacer()
                     
                     HStack {
