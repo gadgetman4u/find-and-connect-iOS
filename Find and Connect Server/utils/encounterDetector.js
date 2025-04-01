@@ -7,7 +7,43 @@ const HeardLog = require('../models/HeardLog');
 const TellLog = require('../models/TellLog');
 
 // Path to the Python script
-const PYTHON_SCRIPT = path.join(__dirname, '..', 'EncounterAlgorithm.py');
+const PYTHON_SCRIPT = path.join(__dirname, '..', 'python', 'EncounterAlgorithm.py');
+
+// Execute Python script with arguments
+const executePython = async (script, args) => {
+  const arguments = args.map(arg => arg.toString());
+
+  const python = spawn('python3', [script, ...arguments]);
+
+  const result = await new Promise((resolve, reject) => {
+    let dataString = '';
+
+    python.stdout.on('data', (data) => {
+      dataString += data.toString();
+    });
+
+    python.stderr.on('data', (data) => {
+      console.error(`Python script error: ${data}`);
+      reject(data);
+    });
+
+    python.on("exit", (code) => {
+      if (code !== 0) {
+        reject(new Error(`Python script exited with code ${code}`));
+      } else {
+        try {
+          // Parse the complete output string
+          resolve(JSON.parse(dataString));
+        } catch (error) {
+          console.error('Failed to parse Python output:', dataString);
+          reject(new Error('Failed to parse Python output'));
+        }
+      }
+    });
+  });
+
+  return result;
+};
 
 // Check if python3 or python is available
 function getPythonCommand() {
@@ -82,80 +118,50 @@ async function processLogs(logId, logType, targetUsername = null) {
 
 // Check for encounters between two logs using Python script
 async function checkForEncountersPython(heardLog, tellLog) {
-  return new Promise((resolve, reject) => {
-    try {
-      const pythonCommand = getPythonCommand();
-      if (!pythonCommand) {
-        console.error('Python is not available. Cannot run encounter algorithm.');
-        return resolve([]);
+  try {
+    console.log(`Running Python script: ${PYTHON_SCRIPT} with logs: ${heardLog.path} ${tellLog.path}`);
+    
+    // Use the executePython function
+    const encounters = await executePython(PYTHON_SCRIPT, [
+      '--max-idle', '3',
+      '--min-duration', '3',
+      '--heard-log', heardLog.path,
+      '--tell-log', tellLog.path
+    ]);
+    
+    // Save encounters to database
+    if (Array.isArray(encounters)) {
+      for (const encounter of encounters) {
+        // Map Python output format to expected format
+        const mappedEncounter = {
+          location: encounter.encounterLocation,
+          timestamp: new Date(encounter.startTime),
+          confidence: encounter.encounterDuration 
+        };
+        await saveEncounter(heardLog, tellLog, mappedEncounter);
       }
-      
-      console.log(`Running Python script: ${pythonCommand} ${PYTHON_SCRIPT} ${heardLog.path} ${tellLog.path}`);
-      
-      // Spawn the Python process
-      const pythonProcess = spawn(pythonCommand, [
-        PYTHON_SCRIPT,
-        heardLog.path,
-        tellLog.path
-      ]);
-      
-      let dataString = '';
-      let errorString = '';
-      
-      // Collect data from the Python script
-      pythonProcess.stdout.on('data', (data) => {
-        dataString += data.toString();
-      });
-      
-      // Collect any errors
-      pythonProcess.stderr.on('data', (data) => {
-        errorString += data.toString();
-        console.error(`Python script error: ${data.toString()}`);
-      });
-      
-      // Handle the end of process
-      pythonProcess.on('close', async (code) => {
-        if (code !== 0) {
-          console.error(`Python script exited with code ${code}`);
-          console.error(`Error output: ${errorString}`);
-          return resolve([]);
-        }
-        
-        try {
-          // Parse the encounters from the JSON output
-          const encounters = JSON.parse(dataString.trim());
-          
-          // Save encounters to database
-          for (const encounter of encounters) {
-            await saveEncounter(heardLog, tellLog, encounter);
-          }
-          
-          resolve(encounters);
-        } catch (error) {
-          console.error('Error parsing Python script output:', error);
-          console.error('Output was:', dataString);
-          resolve([]);
-        }
-      });
-    } catch (error) {
-      console.error('Error running Python script:', error);
-      resolve([]);
     }
-  });
+    
+    return Array.isArray(encounters) ? encounters : [];
+  } catch (error) {
+    console.error('Error running Python script:', error);
+    return [];
+  }
 }
 
 // Save encounter to database
 async function saveEncounter(heardLog, tellLog, encounter) {
   try {
-    // Create a new encounter record
+    // Create a new encounter record with the updated schema
     const newEncounter = new Encounter({
       user1: heardLog.username,
       user2: tellLog.username,
       heardLogId: heardLog._id,
       tellLogId: tellLog._id,
-      location: encounter.location,
-      timestamp: new Date(encounter.timestamp.replace(/-/g, '/')),
-      confidence: encounter.confidence
+      location: encounter.encounterLocation,
+      startTime: new Date(`2023-01-01T${encounter.startTime}`), // Add a date for proper parsing
+      endTime: new Date(`2023-01-01T${encounter.endTime}`),     // Add a date for proper parsing
+      duration: encounter.encounterDuration
     });
 
     // Save the encounter (ignoring duplicates)
@@ -166,7 +172,7 @@ async function saveEncounter(heardLog, tellLog, encounter) {
       console.log('Duplicate encounter detected, skipping');
     });
 
-    console.log(`Encounter detected between ${heardLog.username} and ${tellLog.username} at ${encounter.location}`);
+    console.log(`Encounter detected between ${heardLog.username} and ${tellLog.username} at ${encounter.encounterLocation}`);
     return true;
   } catch (error) {
     console.error('Error saving encounter:', error);

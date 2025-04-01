@@ -29,7 +29,7 @@ mongoose.connection.once("open", () => {
 // Routes
 app.use('/api/logs', require('./routes/logRoutes'));
 app.use('/api/encounters', require('./routes/encounterRoutes'));
-app.use('/view', require('./routes/viewRoutes'));
+app.use('/view', require('./views/index'));
 
 // Root route
 app.get('/', (req, res) => {

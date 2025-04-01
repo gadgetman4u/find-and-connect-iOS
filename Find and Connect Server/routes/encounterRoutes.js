@@ -35,20 +35,30 @@ router.get('/user/:userId', async (req, res) => {
   }
 });
 
-// Get encounters between two specific users
-router.get('/between/:user1Id/:user2Id', async (req, res) => {
+// Get encounters between two users
+router.get('/between/:user1/:user2', async (req, res) => {
   try {
-    const { user1Id, user2Id } = req.params;
+    const { user1, user2 } = req.params;
     
     const encounters = await Encounter.find({
       $or: [
-        { user1: user1Id, user2: user2Id },
-        { user1: user2Id, user2: user1Id }
+        { user1, user2 },
+        { user1: user2, user2: user1 }
       ]
-    })
-    .sort({ timestamp: -1 });
+    }).sort({ startTime: -1 });
     
-    res.status(200).json({ encounters });
+    // Transform data for frontend if needed
+    const formattedEncounters = encounters.map(e => ({
+      id: e._id,
+      users: [e.user1, e.user2],
+      location: e.location,
+      startTime: e.startTime,
+      endTime: e.endTime,
+      duration: e.duration + ' minutes',
+      detectedOn: e.detectionDate
+    }));
+    
+    res.status(200).json({ encounters: formattedEncounters });
   } catch (error) {
     console.error('Error fetching encounters between users:', error);
     res.status(500).json({ message: 'Server error', error: error.message });

@@ -7,6 +7,7 @@ const TellLog = require('../models/TellLog');
 const path = require('path');
 const fs = require('fs');
 const { processLogs } = require('../utils/encounterDetector');
+const Encounter = require('../models/Encounter');
 
 //Upload log file
 router.post('/upload', upload.single('file'), async (req, res) => {
@@ -139,7 +140,7 @@ router.post('/test-upload', upload.single('file'), (req, res) => {
 });
 
 // Delete a specific log by ID
-router.delete('/:id', async (req, res) => {
+router.delete('/delete/:id', async (req, res) => {
   try {
     const logId = req.params.id;
     
@@ -173,7 +174,7 @@ router.delete('/:id', async (req, res) => {
 });
 
 // Delete all logs for a specific user
-router.delete('/user/:username', async (req, res) => {
+router.delete('/delete/user/:username', async (req, res) => {
   try {
     const username = req.params.username;
     
@@ -204,7 +205,7 @@ router.delete('/user/:username', async (req, res) => {
 });
 
 // Delete all logs of a specific type
-router.delete('/type/:logType', async (req, res) => {
+router.delete('/delete/type/:logType', async (req, res) => {
   try {
     const logType = req.params.logType;
     
@@ -239,7 +240,7 @@ router.delete('/type/:logType', async (req, res) => {
 });
 
 // Delete all logs
-router.delete('/', async (req, res) => {
+router.delete('/delete/all', async (req, res) => {
   try {
     // Find all logs first
     const logs = await Log.find({});
@@ -267,7 +268,7 @@ router.delete('/', async (req, res) => {
   }
 });
 
-// Process logs between specific users
+// Process encounters for a user
 router.post('/process-encounters', async (req, res) => {
   try {
     const { username, targetUsername } = req.body;
@@ -276,31 +277,42 @@ router.post('/process-encounters', async (req, res) => {
       return res.status(400).json({ message: 'Username is required' });
     }
     
-    // Find all unprocessed logs for this user
-    const userLogs = await Log.find({ 
-      username,
-      processed: false
-    });
+    // Find logs for this user
+    const logs = await Log.find({ username });
     
-    console.log(`Found ${userLogs.length} unprocessed logs for user ${username}`);
-    
-    // Process each log against the target user
-    let totalEncounters = 0;
-    for (const log of userLogs) {
-      const encountersFound = await processLogs(
-        log._id, 
-        log.logType, 
-        targetUsername
-      );
-      totalEncounters += encountersFound;
+    if (logs.length === 0) {
+      return res.status(404).json({ message: 'No logs found for this user', encounters: 0 });
     }
     
-    res.status(200).json({
-      message: `Processed ${userLogs.length} logs for encounters`,
-      encounters: totalEncounters
+    // Process each log
+    let totalEncounters = 0;
+    let encounterDetails = []; // To store encounter details
+    
+    for (const log of logs) {
+      const encounters = await processLogs(log._id, log.logType, targetUsername);
+      totalEncounters += encounters;
+      
+      // If encounters were found, get their details
+      if (encounters > 0) {
+        const details = await Encounter.find({
+          $or: [
+            { user1: username },
+            { user2: username }
+          ]
+        }).sort({ detectionDate: -1 }).limit(10); // Get the most recent 10 
+        
+        encounterDetails = details;
+      }
+    }
+    
+    // Return the encounter count and details
+    return res.status(200).json({ 
+      message: `Processed ${logs.length} logs for ${username}`,
+      encounters: totalEncounters,
+      encounterDetails
     });
   } catch (error) {
-    console.error('Process error:', error);
+    console.error('Error processing encounters:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
