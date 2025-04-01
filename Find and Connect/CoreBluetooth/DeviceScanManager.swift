@@ -47,6 +47,9 @@ class DeviceScanManager: NSObject, ObservableObject, CBCentralManagerDelegate {
         return reversed
     }()
     
+    var isSimulating = false
+    private var simulatedLocationId: String?
+    
     override init() {
         super.init()
         centralManager = CBCentralManager(delegate: self, queue: nil)
@@ -202,6 +205,24 @@ class DeviceScanManager: NSObject, ObservableObject, CBCentralManagerDelegate {
         } else {
             return "No heard log available"
         }
+    }
+    
+    func simulateLocation(locationId: String) {
+        isSimulating = true
+        simulatedLocationId = locationId
+        
+        // Set as current location
+        currentLocationId = locationId
+        
+        // Force UI update
+        objectWillChange.send()
+    }
+    
+    func stopSimulation() {
+        isSimulating = false
+        simulatedLocationId = nil
+        
+        objectWillChange.send()
     }
     
     deinit {

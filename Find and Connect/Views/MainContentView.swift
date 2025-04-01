@@ -57,24 +57,10 @@ struct ExpandableActionButton: View {
 }
 
 struct MainContentView: View {
-    @StateObject private var viewModel: MainContentViewModel
+    @ObservedObject var viewModel: MainContentViewModel
     @Binding var isDeviceListExpanded: Bool
     @Binding var showingTellSetLog: Bool
     @Binding var showingHeardSetLog: Bool
-    
-    // Initialize with dependencies and create the ViewModel
-    init(beaconManager: BeaconScanManager, deviceManager: DeviceScanManager, peripheralManager: BluetoothPeripheralManager, isDeviceListExpanded: Binding<Bool>, showingTellSetLog: Binding<Bool>, showingHeardSetLog: Binding<Bool>, username: String) {
-        self._isDeviceListExpanded = isDeviceListExpanded
-        self._showingTellSetLog = showingTellSetLog
-        self._showingHeardSetLog = showingHeardSetLog
-        
-        _viewModel = StateObject(wrappedValue: MainContentViewModel(
-            beaconManager: beaconManager, 
-            deviceManager: deviceManager, 
-            peripheralManager: peripheralManager, 
-            username: username
-        ))
-    }
     
     var body: some View {
         VStack(spacing: 20) {
@@ -331,6 +317,6 @@ struct CardButtonStyle: ButtonStyle {
 // Preview
 struct MainContentView_Previews: PreviewProvider {
     static var previews: some View {
-        MainContentView(beaconManager: BeaconScanManager(), deviceManager: DeviceScanManager(), peripheralManager: BluetoothPeripheralManager(), isDeviceListExpanded: .constant(false), showingTellSetLog: .constant(false), showingHeardSetLog: .constant(false), username: "John Doe")
+        MainContentView(viewModel: MainContentViewModel(beaconManager: BeaconScanManager(), deviceManager: DeviceScanManager(), peripheralManager: BluetoothPeripheralManager(), username: "John Doe"), isDeviceListExpanded: .constant(false), showingTellSetLog: .constant(false), showingHeardSetLog: .constant(false))
     }
 }

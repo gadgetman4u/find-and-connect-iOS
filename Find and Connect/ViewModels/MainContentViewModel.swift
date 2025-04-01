@@ -29,25 +29,47 @@ class MainContentViewModel: ObservableObject {
     @Published var showingHeardActions = false
     @Published var showingTellActions = false
     
+    // MARK: - Demo Mode Properties
+    @Published var isDemoMode = false
+    private var demoTimer: Timer?
+    private var demoRSSI = -55
+    private var demoRSSIDirection = -1
+    private let demoLocationId = "DPI_2054_Kitchen"
+    
     // MARK: - Computed Properties
     var isScanning: Bool {
-        beaconManager.isScanning
+        if isDemoMode {
+            return true
+        }
+        return beaconManager.isScanning
     }
     
     var nearestBeaconId: String? {
-        beaconManager.nearestBeaconId
+        if isDemoMode {
+            return "DPI_2054_Kitchen"
+        }
+        return beaconManager.nearestBeaconId
     }
     
     var lastRSSI: Int? {
+        if isDemoMode {
+            return demoRSSI
+        }
         return beaconManager.lastRSSI?.intValue
     }
     
     var discoveredBeaconCount: Int {
-        beaconManager.discoveredBeacons.count
+        if isDemoMode {
+            return 1 // Show a few fake beacons
+        }
+        return beaconManager.discoveredBeacons.count
     }
     
     var hasDiscoveredBeacons: Bool {
-        !beaconManager.discoveredBeacons.isEmpty
+        if isDemoMode {
+            return true
+        }
+        return !beaconManager.discoveredBeacons.isEmpty
     }
     
     var statusText: String {
@@ -67,6 +89,9 @@ class MainContentViewModel: ObservableObject {
         // Start initial load animation
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             self.isViewLoaded = true
+            
+            // Enable demo mode for demo recording
+            self.enableDemoMode()
         }
         
         // Subscribe to beacon detection events
@@ -258,5 +283,54 @@ class MainContentViewModel: ObservableObject {
                 print("Heard log upload result: \(success ? "Success" : "Failed") - \(message ?? "No message")")
             }
         }
+    }
+    
+    // MARK: - Demo Mode Methods
+    
+    func enableDemoMode() {
+        isDemoMode = true
+        
+        // Set up the demo location in both managers
+        beaconManager.simulateLocation(locationId: demoLocationId, rssi: demoRSSI)
+        deviceManager.simulateLocation(locationId: demoLocationId)
+        
+        // Start actually advertising with this location
+        peripheralManager.startAdvertising(username: username, locationName: demoLocationId)
+        
+        // Make sure scanning is active to detect real devices
+        if !isScanning {
+            startScanning()
+        }
+        
+        // Create a timer that varies the RSSI slightly for realism
+        demoTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            
+            // Vary RSSI between -45 and -65 for realism
+            self.demoRSSI += self.demoRSSIDirection
+            if self.demoRSSI <= -65 {
+                self.demoRSSIDirection = 1
+            } else if self.demoRSSI >= -45 {
+                self.demoRSSIDirection = -1
+            }
+            
+            // Update simulated RSSI
+            self.beaconManager.simulateLocation(locationId: self.demoLocationId, rssi: self.demoRSSI)
+            
+            // Force UI update
+            self.objectWillChange.send()
+        }
+    }
+    
+    func disableDemoMode() {
+        isDemoMode = false
+        demoTimer?.invalidate()
+        demoTimer = nil
+        
+        // Turn off location simulation
+        beaconManager.stopSimulation()
+        deviceManager.stopSimulation()
+        
+        objectWillChange.send()
     }
 } 

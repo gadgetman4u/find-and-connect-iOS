@@ -12,9 +12,7 @@ import UIKit
 import UserNotifications
 
 struct ContentView: View {
-    @StateObject private var beaconManager = BeaconScanManager()
-    @StateObject private var deviceManager = DeviceScanManager()
-    @StateObject private var peripheralManager = BluetoothPeripheralManager()
+    @StateObject private var viewModel: MainContentViewModel
     @State private var isDeviceListExpanded = false
     @AppStorage("isLoggedIn") private var isLoggedIn = false
     @AppStorage("username") private var username = ""
@@ -25,6 +23,21 @@ struct ContentView: View {
     let appVersion: String 
     
     let center = UNUserNotificationCenter.current()
+    
+    init(appVersion: String = "1.0") {
+        let beaconManager = BeaconScanManager()
+        let deviceManager = DeviceScanManager()
+        let peripheralManager = BluetoothPeripheralManager()
+        
+        // Initialize the view model
+        _viewModel = StateObject(wrappedValue: MainContentViewModel(
+            beaconManager: beaconManager,
+            deviceManager: deviceManager,
+            peripheralManager: peripheralManager
+        ))
+        
+        self.appVersion = appVersion
+    }
     
     var body: some View {
         if !isLoggedIn {
@@ -61,7 +74,7 @@ struct ContentView: View {
                     .padding(.horizontal)
                     .padding(.top, 30)
                     
-                    if !beaconManager.isBluetoothOn {
+                    if !viewModel.beaconManager.isBluetoothOn {
                         // Bluetooth disabled view
                         VStack(spacing: 15) {
                             Image(systemName: "bluetooth.slash")
@@ -78,14 +91,12 @@ struct ContentView: View {
                                 .fill(Color.white.opacity(0.15))
                         )
                     } else {
+                        // Pass the viewModel to MainContentView
                         MainContentView(
-                            beaconManager: beaconManager,
-                            deviceManager: deviceManager,
-                            peripheralManager: peripheralManager,
+                            viewModel: viewModel,
                             isDeviceListExpanded: $isDeviceListExpanded,
                             showingTellSetLog: $showingTellSetLog,
-                            showingHeardSetLog: $showingHeardSetLog,
-                            username: username
+                            showingHeardSetLog: $showingHeardSetLog
                         )
                     }
 
@@ -101,27 +112,52 @@ struct ContentView: View {
                                 .foregroundColor(.white)
                                 .padding()
                         }
+                        
+                        // Now we can directly access the viewModel
+                        Button(action: {
+                            if viewModel.isDemoMode {
+                                viewModel.disableDemoMode()
+                            } else {
+                                viewModel.enableDemoMode()
+                            }
+                        }) {
+                            Image(systemName: viewModel.isDemoMode ? "video.fill" : "video")
+                                .font(.system(size: 20))
+                                .foregroundColor(viewModel.isDemoMode ? .yellow : .white)
+                                .padding()
+                        }
+                        .simultaneousGesture(
+                            LongPressGesture(minimumDuration: 1.0)
+                                .onEnded { _ in
+                                    viewModel.enableDemoMode()
+                                }
+                        )
                     }
                     .padding(.horizontal)
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: Notification.Name("LocationChanged"))) { notification in
                 if let locationName = notification.userInfo?["locationName"] as? String {
-                    peripheralManager.startAdvertising(username: username, locationName: locationName)
+                    viewModel.peripheralManager.startAdvertising(username: username, locationName: locationName)
                     sendLocationChangeNotification(newLocation: locationName)
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: Notification.Name("OutOfRange"))) { _ in
-                peripheralManager.stopAdvertising()
+                viewModel.peripheralManager.stopAdvertising()
                 sendLocationChangeNotification(newLocation: "Out of range")
             }
             .onAppear {
-                beaconManager.setUsername(username)
-                deviceManager.setUsername(username)
+                // Update username in viewModel
+                viewModel.username = username
                 
-                beaconManager.startScanning()
-                deviceManager.startScanning()
+                // Setup managers
+                viewModel.beaconManager.setUsername(username)
+                viewModel.deviceManager.setUsername(username)
                 
+                // Start scanning
+                viewModel.startScanning()
+                
+                // Request notification permissions
                 UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { success, error in
                     if let error = error {
                         print("Notification permission error: \(error)")

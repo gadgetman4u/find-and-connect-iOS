@@ -47,6 +47,10 @@ class BeaconScanManager: NSObject, ObservableObject, CBCentralManagerDelegate {
     // Property to hold the username
     private var currentUsername: String = ""
     
+    var isSimulating = false
+    private var simulatedLocationId: String?
+    private var simulatedRSSI: NSNumber?
+    
     override init() {
         super.init()
         centralManager = CBCentralManager(delegate: self, queue: nil)
@@ -228,5 +232,57 @@ class BeaconScanManager: NSObject, ObservableObject, CBCentralManagerDelegate {
     func setUsername(_ username: String) {
         self.currentUsername = username
         print("Beacon Scanner: Username set to \(username)")
+    }
+    
+    func simulateLocation(locationId: String, rssi: Int) {
+        isSimulating = true
+        simulatedLocationId = locationId
+        simulatedRSSI = NSNumber(value: rssi)
+        
+        // Set this as the nearest beacon
+        nearestBeaconId = locationId
+        lastRSSI = NSNumber(value: rssi)
+        
+        // Add to discovered beacons if not already there
+        if !discoveredBeacons.contains(locationId) {
+            discoveredBeacons.append(locationId)
+        }
+        
+        // Also update the RSSI map
+        beaconRSSIMap[locationId] = NSNumber(value: rssi)
+        
+        // Force UI update
+        objectWillChange.send()
+        
+        // Notify location changed
+        NotificationCenter.default.post(
+            name: Notification.Name("LocationChanged"),
+            object: nil,
+            userInfo: ["locationName": locationId]
+        )
+    }
+    
+    func stopSimulation() {
+        isSimulating = false
+        
+        // Clear simulated values
+        if nearestBeaconId == simulatedLocationId {
+            nearestBeaconId = nil
+            lastRSSI = nil
+        }
+        
+        // Remove from discovered beacons
+        if let locationId = simulatedLocationId, let index = discoveredBeacons.firstIndex(of: locationId) {
+            discoveredBeacons.remove(at: index)
+        }
+        
+        // Remove from RSSI map
+        if let locationId = simulatedLocationId {
+            beaconRSSIMap.removeValue(forKey: locationId)
+        }
+        
+        simulatedLocationId = nil
+        simulatedRSSI = nil
+        objectWillChange.send()
     }
 } 

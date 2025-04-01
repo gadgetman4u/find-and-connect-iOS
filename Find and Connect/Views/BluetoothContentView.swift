@@ -49,7 +49,6 @@ struct BluetoothContentView: View {
         .padding()
     }
     
-    // New monitoring status section that replaces the buttons
     private var monitoringStatusSection: some View {
         VStack(spacing: 15) {
             Text("Bluetooth Monitoring")
@@ -57,7 +56,6 @@ struct BluetoothContentView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             
             HStack(spacing: 15) {
-                // HeardSet Status Card
                 VStack(alignment: .leading, spacing: 4) {
                     Label("HeardSet", systemImage: "headphones")
                         .font(.system(size: 16, weight: .medium))
@@ -70,7 +68,7 @@ struct BluetoothContentView: View {
                 .background(Color.blue.opacity(0.1))
                 .cornerRadius(10)
                 
-                // TellSet Status Card
+                // Tellset Status Card
                 VStack(alignment: .leading, spacing: 4) {
                     Label("TellSet", systemImage: "megaphone")
                         .font(.system(size: 16, weight: .medium))
