@@ -217,45 +217,54 @@ class MainContentViewModel: ObservableObject {
     // MARK: - Upload Methods
     
     func uploadTellLogToServer() {
-        isUploading = true
-        
-        // Set the username in the tell set
-        peripheralManager.tellSet.username = username
-        
-        // Generate a userId if not available
-        let deviceId = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
-        
-        peripheralManager.tellSet.uploadLogToServer(userId: deviceId) { [weak self] success, message in
-            guard let self = self else { return }
-            
-            DispatchQueue.main.async {
-                self.isUploading = false
-                self.uploadMessage = message ?? "Unknown error"
-                self.showUploadAlert = true
-                
-                print("Tell log upload result: \(success ? "Success" : "Failed") - \(message ?? "No message")")
-            }
+        Task {
+            await uploadLogWithAPIManager(isHeardSet: false)
         }
     }
     
     func uploadHeardLogToServer() {
-        isUploading = true
+        Task {
+            await uploadLogWithAPIManager(isHeardSet: true)
+        }
+    }
+    
+    private func uploadLogWithAPIManager(isHeardSet: Bool) async {
+        // Update UI to show loading
+        await MainActor.run {
+            isUploading = true
+        }
         
-        // Set the username in the heard set
-        deviceManager.heardSet.username = username
-        
-        // Generate a userId if not available
-        let deviceId = UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
-        
-        deviceManager.heardSet.uploadLogToServer(userId: deviceId) { [weak self] success, message in
-            guard let self = self else { return }
+        do {
+            // Get log content
+            let logContent: String
+            let logType: LogType = isHeardSet ? .heardLog : .tellLog
             
-            DispatchQueue.main.async {
-                self.isUploading = false
-                self.uploadMessage = message ?? "Unknown error"
-                self.showUploadAlert = true
-                
-                print("Heard log upload result: \(success ? "Success" : "Failed") - \(message ?? "No message")")
+            if isHeardSet {
+                logContent = deviceManager.getHeardLog()
+            } else {
+                logContent = peripheralManager.getTellLog()
+            }
+            
+            // Upload using APIManager
+            let result = try await APIManager.shared.uploadLog(
+                logContent: logContent,
+                username: username,
+                logType: logType
+            )
+            
+            // Handle success
+            await MainActor.run {
+                isUploading = false
+                uploadMessage = "Upload successful: \(result)"
+                showUploadAlert = true
+            }
+            
+        } catch {
+            // Handle error
+            await MainActor.run {
+                isUploading = false
+                uploadMessage = "Upload failed: \(error.localizedDescription)"
+                showUploadAlert = true
             }
         }
     }

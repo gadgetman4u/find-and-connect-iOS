@@ -66,7 +66,7 @@ function getPythonCommand() {
 // Process logs to detect encounters
 async function processLogs(logId, logType, targetUsername = null) {
   try {
-    // Get the log that was just uploaded
+    // Get the log from the main Log collection
     const log = await Log.findById(logId);
     if (!log) {
       console.error('Log not found:', logId);
@@ -91,6 +91,11 @@ async function processLogs(logId, logType, targetUsername = null) {
     const potentialMatches = await Log.find(query);
     console.log(`Found ${potentialMatches.length} potential matching logs`);
     
+    if(potentialMatches.length == 0) {
+      console.log("No matching logs, returning")
+      return 0;
+    }
+
     // Process each potential match
     let encountersFound = 0;
     for (const otherLog of potentialMatches) {
@@ -152,6 +157,22 @@ async function checkForEncountersPython(heardLog, tellLog) {
 // Save encounter to database
 async function saveEncounter(heardLog, tellLog, encounter) {
   try {
+    console.log('Saving encounter:', encounter);
+    console.log('Between users:', heardLog.username, 'and', tellLog.username);
+    
+    // Check if encounter already exists
+    const existingEncounter = await Encounter.findOne({
+      user1: heardLog.username,
+      user2: tellLog.username,
+      startTime: new Date(`2023-01-01T${encounter.startTime}`),
+      endTime: new Date(`2023-01-01T${encounter.endTime}`)
+    });
+    
+    if (existingEncounter) {
+      console.log('Encounter already exists, skipping');
+      return false;
+    }
+    
     // Create a new encounter record with the updated schema
     const newEncounter = new Encounter({
       user1: heardLog.username,
@@ -159,20 +180,15 @@ async function saveEncounter(heardLog, tellLog, encounter) {
       heardLogId: heardLog._id,
       tellLogId: tellLog._id,
       location: encounter.encounterLocation,
-      startTime: new Date(`2023-01-01T${encounter.startTime}`), // Add a date for proper parsing
-      endTime: new Date(`2023-01-01T${encounter.endTime}`),     // Add a date for proper parsing
-      duration: encounter.encounterDuration
+      startTime: new Date(`2023-01-01T${encounter.startTime}`), 
+      endTime: new Date(`2023-01-01T${encounter.endTime}`),
+      duration: encounter.encounterDuration,
+      detectionDate: new Date()
     });
-
-    // Save the encounter (ignoring duplicates)
-    await newEncounter.save().catch(err => {
-      if (err.code !== 11000) { // Not a duplicate error
-        throw err;
-      }
-      console.log('Duplicate encounter detected, skipping');
-    });
-
-    console.log(`Encounter detected between ${heardLog.username} and ${tellLog.username} at ${encounter.encounterLocation}`);
+    
+    console.log('New encounter object:', newEncounter);
+    await newEncounter.save();
+    console.log('Encounter saved successfully');
     return true;
   } catch (error) {
     console.error('Error saving encounter:', error);

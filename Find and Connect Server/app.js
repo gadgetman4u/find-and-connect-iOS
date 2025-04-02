@@ -38,6 +38,6 @@ app.get('/', (req, res) => {
 
 // Start server
 // http://10.194.213.230:8081/api/logs
-var server = app.listen(8081, "localhost", () => {
+var server = app.listen(8081, "0.0.0.0", () => {
     console.log("Server is running on port 8081 at localhost")
 })

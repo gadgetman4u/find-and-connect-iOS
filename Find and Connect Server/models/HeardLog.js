@@ -1,33 +1,12 @@
 const mongoose = require('mongoose');
 
-const HeardLogSchema = new mongoose.Schema({
-  filename: {
-    type: String,
+const heardLogSchema = new mongoose.Schema({
+  logId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Log',
     required: true
-  },
-  originalName: {
-    type: String
-  },
-  path: {
-    type: String,
-    required: true
-  },
-  size: {
-    type: Number
-  },
-  username: {
-    type: String,
-    required: true,
-    index: true
-  },
-  uploadDate: {
-    type: Date,
-    default: Date.now
-  },
-  processed: {
-    type: Boolean,
-    default: false
   }
+  // Any heard-specific fields can be added here
 });
 
-module.exports = mongoose.model('HeardLog', HeardLogSchema); 
+module.exports = mongoose.model('HeardLog', heardLogSchema); 
