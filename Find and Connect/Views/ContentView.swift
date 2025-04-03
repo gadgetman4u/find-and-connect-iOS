@@ -14,6 +14,7 @@ import UserNotifications
 struct ContentView: View {
     @StateObject private var beaconManager = BeaconScanManager()
     @StateObject private var deviceManager = DeviceScanManager()
+    @StateObject private var peripheralManager = BluetoothPeripheralManager()
     @State private var isDeviceListExpanded = false
     @AppStorage("isLoggedIn") private var isLoggedIn = false
     @AppStorage("username") private var username = ""
@@ -21,7 +22,7 @@ struct ContentView: View {
     @State private var showingHeardSetLog = false
     @State private var showingDiscoveredDevices = false
     @State private var showingVersionInfo = false
-    let appVersion = "1.2" // App version for version control
+    let appVersion: String 
     
     let center = UNUserNotificationCenter.current()
     
@@ -80,61 +81,14 @@ struct ContentView: View {
                         MainContentView(
                             beaconManager: beaconManager,
                             deviceManager: deviceManager,
+                            peripheralManager: peripheralManager,
                             isDeviceListExpanded: $isDeviceListExpanded,
                             showingTellSetLog: $showingTellSetLog,
                             showingHeardSetLog: $showingHeardSetLog,
                             username: username
                         )
                     }
-                    
-                    
-                    Button(action: {
-                        showingTellSetLog = true
-                    }) {
-                        Text("View TellSet Log")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white)
-                            .padding()
-                            .background(
-                                RoundedRectangle(cornerRadius: 15)
-                                    .fill(Color.blue.opacity(0.3))
-                            )
-                    }
-                    .sheet(isPresented: $showingTellSetLog) {
-                        if let logContents = deviceManager.tellSet.readLogFile() {
-                            TellSetView(logContents: logContents, onClear: {
-                                deviceManager.tellSet.clearLogFile()
-                            })
-                        } else {
-                            TellSetView(logContents: "Error reading log file", onClear: {
-                                deviceManager.tellSet.clearLogFile()
-                            })
-                        }
-                    }
-                    
-                    Button(action: {
-                        showingHeardSetLog = true
-                    }) {
-                        Text("View HeardSet Log")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white)
-                            .padding()
-                            .background(
-                                RoundedRectangle(cornerRadius: 15)
-                                    .fill(Color.purple.opacity(0.3))
-                            )
-                    }
-                    .sheet(isPresented: $showingHeardSetLog) {
-                        if let logContents = deviceManager.heardSet.readLogFile() {
-                            HeardSetView(logContents: logContents, onClear: {
-                                deviceManager.heardSet.clearLogFile()
-                            })
-                        } else {
-                            HeardSetView(logContents: "Error reading log file", onClear: {
-                                deviceManager.heardSet.clearLogFile()
-                            })
-                        }
-                    }
+
                     Spacer()
                     
                     HStack {
@@ -153,24 +107,21 @@ struct ContentView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: Notification.Name("LocationChanged"))) { notification in
                 if let locationName = notification.userInfo?["locationName"] as? String {
-                    deviceManager.startAdvertising(username: username, locationName: locationName)
+                    peripheralManager.startAdvertising(username: username, locationName: locationName)
                     sendLocationChangeNotification(newLocation: locationName)
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: Notification.Name("OutOfRange"))) { _ in
-                // The deviceManager will handle stopping advertising internally when it receives the OutOfRange notification
+                peripheralManager.stopAdvertising()
                 sendLocationChangeNotification(newLocation: "Out of range")
             }
             .onAppear {
-                // Set username for both managers
                 beaconManager.setUsername(username)
                 deviceManager.setUsername(username)
                 
-                // Start both scanning processes
                 beaconManager.startScanning()
                 deviceManager.startScanning()
                 
-                // Request notification permissions if needed
                 UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { success, error in
                     if let error = error {
                         print("Notification permission error: \(error)")
@@ -203,8 +154,12 @@ struct ContentView: View {
             }
         }
     }
+    
+    func showTellSetLogView() {
+        showingTellSetLog = true
+    }
 }
 
-#Preview {
-    ContentView()
-}
+//#Preview {
+//    ContentView()
+//}
