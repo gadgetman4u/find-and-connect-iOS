@@ -159,6 +159,7 @@ class BluetoothPeripheralManager: NSObject, ObservableObject, CBPeripheralManage
         stopAdvertising()
     }
 
+    // For sharing
     func getTellLog() -> String {
         // Return the tell log content
         // Replace this with your actual implementation to access the log

@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import CryptoKit  // For secure random number generation
 
 class EidGenerator {
     private var eid: String
