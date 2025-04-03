@@ -137,6 +137,11 @@ struct MainContentView: View {
                 HeardSetView(logContents: "Error reading log file", onClear: viewModel.clearHeardLog)
             }
         }
+        .sheet(isPresented: $viewModel.showingEncountersView) {
+            if let response = viewModel.uploadResponse {
+                EncountersView(response: response)
+            }
+        }
         .alert(isPresented: $viewModel.showUploadAlert) {
             Alert(
                 title: Text("Log Upload"),

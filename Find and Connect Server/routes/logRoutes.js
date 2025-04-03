@@ -6,7 +6,7 @@ const HeardLog = require('../models/HeardLog');
 const TellLog = require('../models/TellLog');
 const path = require('path');
 const fs = require('fs');
-const { processLogs } = require('../utils/encounterDetector');
+const { processLogs, detectEncounters } = require('../utils/encounterDetector');
 const Encounter = require('../models/Encounter');
 
 // Create a reusable function for log deletion
@@ -132,9 +132,38 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       await tellLog.save();
     }
 
+    // After saving the log, process for encounters but don't store them
+    let encounters = [];
+    
+    // Find users with opposite log type
+    const oppositeLogType = logType === 'heardLog' ? 'tellLog' : 'heardLog';
+    const otherUsers = await Log.find({ 
+      username: { $ne: username },
+      logType: oppositeLogType 
+    });
+    
+    console.log(`Found ${otherUsers.length} users with ${oppositeLogType} logs to check against`);
+    
+    // For each user with the opposite log type
+    for (const otherLog of otherUsers) {
+      // Process encounters between the new log and this user's opposite type log
+      const userEncounters = logType === 'heardLog' 
+        ? await detectEncounters(log, otherLog)
+        : await detectEncounters(otherLog, log);
+      
+      // Add these encounters to our results
+      encounters = [...encounters, ...userEncounters];
+    }
+    
+    // Mark the log as processed
+    log.processed = true;
+    await log.save();
+    
+    // Return the log and encounters directly
     res.status(201).json({
-      message: 'Log uploaded successfully',
-      log
+      message: `Log uploaded successfully. Found ${encounters.length} potential encounters.`,
+      log,
+      encounters
     });
   } catch (error) {
     console.error('Upload error:', error);
@@ -164,28 +193,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Download log file
-router.get('/download/:id', async (req, res) => {
-  try {
-    const log = await Log.findById(req.params.id);
-    
-    if (!log) {
-      return res.status(404).json({ message: 'Log not found' });
-    }
-    
-    const filePath = path.resolve(log.path);
-    
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ message: 'File not found on server' });
-    }
-    
-    res.download(filePath, log.originalName);
-  } catch (error) {
-    console.error('Download error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
 
 // Delete logs for a specific user AND logType
 router.delete('/delete/user/:username/:logType', async (req, res) => {
@@ -350,65 +357,6 @@ router.post('/test-python-algorithm', async (req, res) => {
     });
   } catch (error) {
     console.error('Python algorithm test error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// Add a cleanup route to fix inconsistencies
-router.post('/cleanup-logs', async (req, res) => {
-  try {
-    // 1. Find all HeardLogs and TellLogs with invalid logId references
-    const heardLogIds = await Log.find({ logType: 'heardLog' }).distinct('_id');
-    const tellLogIds = await Log.find({ logType: 'tellLog' }).distinct('_id');
-    
-    const deleteHeardResult = await HeardLog.deleteMany({ 
-      logId: { $nin: heardLogIds } 
-    });
-    
-    const deleteTellResult = await TellLog.deleteMany({ 
-      logId: { $nin: tellLogIds } 
-    });
-    
-    // 2. Make sure there's only one HeardLog and one TellLog per user
-    const users = await Log.distinct('username');
-    let userCleaned = 0;
-    
-    for (const user of users) {
-      // For each log type, keep only the newest one
-      for (const logType of ['heardLog', 'tellLog']) {
-        const logs = await Log.find({ username: user, logType }).sort({ uploadDate: -1 });
-        
-        if (logs.length > 1) {
-          // Keep the first one (newest), delete the rest
-          for (let i = 1; i < logs.length; i++) {
-            // Delete file
-            if (logs[i].path && fs.existsSync(logs[i].path)) {
-              fs.unlinkSync(logs[i].path);
-            }
-            
-            // Delete type-specific entry
-            if (logType === 'heardLog') {
-              await HeardLog.deleteMany({ logId: logs[i]._id });
-            } else {
-              await TellLog.deleteMany({ logId: logs[i]._id });
-            }
-            
-            // Delete log entry
-            await Log.findByIdAndDelete(logs[i]._id);
-          }
-          userCleaned++;
-        }
-      }
-    }
-    
-    res.status(200).json({
-      message: 'Database cleaned successfully',
-      heardLogsRemoved: deleteHeardResult.deletedCount,
-      tellLogsRemoved: deleteTellResult.deletedCount,
-      usersCleaned: userCleaned
-    });
-  } catch (error) {
-    console.error('Cleanup error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

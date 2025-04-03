@@ -139,9 +139,10 @@ async function checkForEncountersPython(heardLog, tellLog) {
       for (const encounter of encounters) {
         // Map Python output format to expected format
         const mappedEncounter = {
-          location: encounter.encounterLocation,
-          timestamp: new Date(encounter.startTime),
-          confidence: encounter.encounterDuration 
+          startTime: encounter.startTime,
+          endTime: encounter.endTime,
+          encounterLocation: encounter.encounterLocation,
+          encounterDuration: encounter.encounterDuration 
         };
         await saveEncounter(heardLog, tellLog, mappedEncounter);
       }
@@ -164,8 +165,8 @@ async function saveEncounter(heardLog, tellLog, encounter) {
     const existingEncounter = await Encounter.findOne({
       user1: heardLog.username,
       user2: tellLog.username,
-      startTime: new Date(`2023-01-01T${encounter.startTime}`),
-      endTime: new Date(`2023-01-01T${encounter.endTime}`)
+      startTime: encounter.startTime,
+      endTime: encounter.endTime
     });
     
     if (existingEncounter) {
@@ -177,13 +178,10 @@ async function saveEncounter(heardLog, tellLog, encounter) {
     const newEncounter = new Encounter({
       user1: heardLog.username,
       user2: tellLog.username,
-      heardLogId: heardLog._id,
-      tellLogId: tellLog._id,
-      location: encounter.encounterLocation,
-      startTime: new Date(`2023-01-01T${encounter.startTime}`), 
-      endTime: new Date(`2023-01-01T${encounter.endTime}`),
-      duration: encounter.encounterDuration,
-      detectionDate: new Date()
+      startTime: encounter.startTime,
+      endTime: encounter.endTime,
+      encounterLocation: encounter.encounterLocation,
+      encounterDuration: encounter.encounterDuration,
     });
     
     console.log('New encounter object:', newEncounter);
@@ -196,7 +194,44 @@ async function saveEncounter(heardLog, tellLog, encounter) {
   }
 }
 
+// Create a new function that just processes and returns encounters without saving
+async function detectEncounters(heardLog, tellLog) {
+  try {
+    console.log(`Running Python script: ${PYTHON_SCRIPT} with logs: ${heardLog.path} ${tellLog.path}`);
+    
+    // Execute the Python script with arguments
+    const pythonResult = await executePython(PYTHON_SCRIPT, [
+      '--max-idle', '3',
+      '--min-duration', '3',
+      '--heard-log', heardLog.path,
+      '--tell-log', tellLog.path
+    ]);
+    
+    // Safely handle different return types
+    const encounters = Array.isArray(pythonResult) ? pythonResult : [];
+    
+    // Now safely map over the encounters array
+    const processedEncounters = encounters.map(encounter => ({
+      user1: heardLog.username,
+      user2: tellLog.username,
+      startTime: encounter.startTime,
+      endTime: encounter.endTime,
+      encounterLocation: encounter.encounterLocation,
+      encounterDuration: encounter.encounterDuration
+    }));
+    
+    console.log(`Detection complete. Found ${processedEncounters.length} encounters.`);
+    
+    return processedEncounters;
+  } catch (error) {
+    console.error('Error running Python script:', error);
+    return [];
+  }
+}
+
+// Export the new function
 module.exports = {
-  processLogs,
+  processLogs,         // Keep the old function for compatibility
+  detectEncounters,    // Add the new function that doesn't save to DB
   checkForEncountersPython
 }; 

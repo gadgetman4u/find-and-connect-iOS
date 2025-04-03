@@ -29,6 +29,9 @@ class MainContentViewModel: ObservableObject {
     @Published var showingHeardActions = false
     @Published var showingTellActions = false
     
+    @Published var uploadResponse: UploadResponse?
+    @Published var showingEncountersView = false
+    
     // MARK: - Computed Properties
     var isScanning: Bool {
         beaconManager.isScanning
@@ -245,18 +248,27 @@ class MainContentViewModel: ObservableObject {
                 logContent = peripheralManager.getTellLog()
             }
             
-            // Upload using APIManager
-            let result = try await APIManager.shared.uploadLog(
+            // Upload using API∫Manager
+            let response = try await APIManager.shared.uploadLog(
                 logContent: logContent,
                 username: username,
                 logType: logType
             )
             
-            // Handle success
+            // Store the response for the encounters view
             await MainActor.run {
-                isUploading = false
-                uploadMessage = "Upload successful: \(result)"
-                showUploadAlert = true
+                self.uploadResponse = response
+                self.isUploading = false
+                
+                // Use optional chaining and nil-coalescing to safely check the array
+                let encounterCount = response.encounters?.count ?? 0
+                if encounterCount > 0 {
+                    self.showingEncountersView = true
+                } else {
+                    // Otherwise just show a success message
+                    self.uploadMessage = "Upload successful: \(response.message)"
+                    self.showUploadAlert = true
+                }
             }
             
         } catch {

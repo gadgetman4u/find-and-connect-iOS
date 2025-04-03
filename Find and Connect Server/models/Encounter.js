@@ -9,37 +9,25 @@ const EncounterSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  heardLogId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Log'
-  },
-  tellLogId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Log'
-  },
-  location: {
+  startTime: {
     type: String,
     required: true
   },
-  startTime: {
-    type: Date,
-    required: true
-  },
   endTime: {
-    type: Date,
+    type: String,
     required: true
   },
-  duration: {
+  encounterLocation: {
+    type: String,
+    required: true
+  },
+  encounterDuration: {
     type: Number,
     required: true
-  },
-  detectionDate: {
-    type: Date,
-    default: Date.now
   }
 });
 
 // Ensure we don't create duplicate encounters
-EncounterSchema.index({ user1: 1, user2: 1, timestamp: 1 }, { unique: true });
+EncounterSchema.index({ user1: 1, user2: 1, startTime: 1 }, { unique: true });
 
 module.exports = mongoose.model('Encounter', EncounterSchema); 

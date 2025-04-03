@@ -7,6 +7,13 @@
 
 import Foundation
 
+enum APIError: Error {
+    case invalidURL
+    case invalidResponse
+    case decodingError(Error)
+    case networkError(Int, String)
+}
+
 enum LogType: String {
     case heardLog = "heardLog"
     case tellLog = "tellLog"
@@ -14,14 +21,14 @@ enum LogType: String {
 
 class APIManager {
     // Base URL
-    private let baseURL = "http://localhost:8081/api"
+    private let baseURL = "http://10.20.69.6:8081/api"
     
     // Singleton instance
     static let shared = APIManager()
     
     private init() {}
     
-    func uploadLog(logContent: String, username: String, logType: LogType) async throws -> String {
+    func uploadLog(logContent: String, username: String, logType: LogType) async throws -> UploadResponse {
         print("⬆️ Starting upload for \(logType.rawValue)")
         print("👤 Username: \(username)")
         
@@ -74,10 +81,20 @@ class APIManager {
         
         // Check for successful status codes
         if httpResponse.statusCode == 200 || httpResponse.statusCode == 201 {
-            if let responseString = String(data: responseData, encoding: .utf8) {
-                return responseString
-            } else {
-                return "Upload successful"
+            do {
+                if let responseString = String(data: responseData, encoding: .utf8) {
+                    print(responseString)
+                } else {
+                    print("Upload successful")
+                }
+                
+                let decoder = JSONDecoder()
+                let uploadResponse = try decoder.decode(UploadResponse.self, from: responseData)
+                return uploadResponse
+            }
+            catch {
+                print("Decoding Error: \(error)")
+                throw APIError.decodingError(error)
             }
         } else {
             let errorMessage = "Upload failed with status code: \(httpResponse.statusCode)"
