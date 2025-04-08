@@ -17,8 +17,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+console.log(process.env.MONGO_URI);
+
 // Connect to MongoDB
-mongoose.connect('mongodb://localhost:27017/newDB')
+mongoose.connect(process.env.MONGO_URI);
 
 mongoose.connection.once("open", () => {
     console.log("Connected to DB!")
