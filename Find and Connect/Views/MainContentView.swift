@@ -139,7 +139,11 @@ struct MainContentView: View {
         }
         .sheet(isPresented: $viewModel.showingEncountersView) {
             if let response = viewModel.uploadResponse {
-                EncountersView(response: response)
+                EncountersView(
+                    response: response,
+                    logType: viewModel.lastUploadedLogType,
+                    currentUsername: viewModel.username
+                )
             }
         }
         .alert(isPresented: $viewModel.showUploadAlert) {

@@ -22,7 +22,8 @@ struct ContentView: View {
     @State private var showingHeardSetLog = false
     @State private var showingDiscoveredDevices = false
     @State private var showingVersionInfo = false
-    let appVersion: String 
+    @State private var showingHelpInfo = false
+    let appVersion: String
     
     let center = UNUserNotificationCenter.current()
     
@@ -92,6 +93,12 @@ struct ContentView: View {
                     Spacer()
                     
                     HStack {
+                        Button(action: {
+                            showingHelpInfo = true
+                        }) {
+                            Text("More Info")
+                        }
+                        
                         Spacer()
                         Button(action: {
                             showingVersionInfo = true

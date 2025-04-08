@@ -60,6 +60,9 @@ class MainContentViewModel: ObservableObject {
     // MARK: - Properties
     private var cancellables = Set<AnyCancellable>()
     
+    // Add to properties section
+    @Published var lastUploadedLogType: LogType = .tellLog
+    
     // MARK: - Initialization
     init(beaconManager: BeaconScanManager, deviceManager: DeviceScanManager, peripheralManager: BluetoothPeripheralManager, username: String = "") {
         self.beaconManager = beaconManager
@@ -235,6 +238,7 @@ class MainContentViewModel: ObservableObject {
         // Update UI to show loading
         await MainActor.run {
             isUploading = true
+            lastUploadedLogType = isHeardSet ? .heardLog : .tellLog
         }
         
         do {
