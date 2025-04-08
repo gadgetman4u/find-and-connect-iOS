@@ -185,7 +185,6 @@ class DeviceScanManager: NSObject, ObservableObject, CBCentralManagerDelegate {
     func stopScanning() {
         isScanning = false
         centralManager.stopScan()
-        heardSet.clearLogFile()  // Clear heardSet when stopping
     }
     
     // MARK: - User management

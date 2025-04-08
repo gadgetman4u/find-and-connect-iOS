@@ -17,8 +17,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+console.log(process.env.MONGO_URI);
+
 // Connect to MongoDB
-mongoose.connect('mongodb://localhost:27017/newDB')
+mongoose.connect(process.env.MONGO_URI);
 
 mongoose.connection.once("open", () => {
     console.log("Connected to DB!")
@@ -33,11 +35,12 @@ app.use('/view', require('./views/index'));
 
 // Root route
 app.get('/', (req, res) => {
-  res.send('Find and Connect Server is running');
+  res.status(200).send('OK');
 });
 
+
 // Start server
-// http://10.194.213.230:8081/api/logs
-var server = app.listen(8081, "0.0.0.0", () => {
-    console.log("Server is running on port 8081 at localhost")
+// http://10.194.213.230:8080/api/logs
+var server = app.listen(8080, "0.0.0.0", () => {
+    console.log("Server is running on port 8080 at localhost")
 })

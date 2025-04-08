@@ -150,8 +150,7 @@ class BluetoothPeripheralManager: NSObject, ObservableObject, CBPeripheralManage
         logTimer = nil
         peripheralManager.stopAdvertising()
         isAdvertising = false
-        tellSet.clearLogFile()  // Clear log when stopping
-        print("Stopped advertising and cleared log")
+        print("Stopped advertising")
     }
     
     deinit {

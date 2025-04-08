@@ -3,6 +3,8 @@ import SwiftUI
 struct EncountersView: View {
     @Environment(\.dismiss) private var dismiss
     let response: UploadResponse
+    let logType: LogType
+    let currentUsername: String
     
     var body: some View {
         NavigationView {
@@ -55,7 +57,11 @@ struct EncountersView: View {
             VStack(spacing: 12) {
                 if let encounters = response.encounters, !encounters.isEmpty {
                     ForEach(encounters, id: \.self) { encounter in
-                        EncounterCard(encounter: encounter)
+                        EncounterCard(
+                            encounter: encounter,
+                            logType: logType,
+                            currentUsername: currentUsername
+                        )
                     }
                 } else {
                     Text("No encounters found")
@@ -69,16 +75,31 @@ struct EncountersView: View {
 
 struct EncounterCard: View {
     let encounter: Encounter
+    let logType: LogType
+    let currentUsername: String
+    
+    // Compute the person to display based on the log type and username
+    private var otherPersonName: String {
+        // If current user uploaded a tellSet, they were the broadcaster
+        // If current user uploaded a heardSet, they were the listener
+        if logType == .tellLog {
+            // For tellLog, the current user is user1 (broadcaster), so show user2
+            return encounter.user2
+        } else {
+            // For heardLog, the current user is user2 (listener), so show user1
+            return encounter.user1
+        }
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("With: \(encounter.user2)")
+                Text("With: \(otherPersonName)")
                     .font(.headline)
                 
                 Spacer()
                 
-                Text("\(encounter.encounterDuration) sec")
+                Text("\(encounter.encounterDuration) minute(s)")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .padding(.horizontal, 8)
@@ -156,6 +177,6 @@ struct EncountersView_Previews: PreviewProvider {
             encounters: sampleEncounters
         )
         
-        return EncountersView(response: response)
+        return EncountersView(response: response, logType: .tellLog, currentUsername: "Alice")
     }
 } 
