@@ -8,17 +8,11 @@ class BluetoothPeripheralManager: NSObject, ObservableObject, CBPeripheralManage
     private var peripheralManager: CBPeripheralManager!
     private let serviceUUID = CBUUID(string: "09bda1b5-41fa-3620-a65b-de20ab32db77") // App's service UUID
     private let locationToIDMap: [String: String] = [
-        "DPI_2038": "1",
-        "DPI_2032_Conf": "2",
-        "DPI_2030_Kitchen": "3",
-        "DPI_2017_Conf": "4",
-        "DPI_2006_Conf": "5",
-        "DPI_2005_Conf": "6",
-        "DPI_2054_Kitchen": "7",
-        "DPI_20_2049": "8",
-        "DPI_2043": "9",
-        "DPI_Alvin_2042": "10",
-        "DPI_2016_Hallway": "11"
+        "Poster_1": "1",
+        "Poster_2": "2",
+        "Poster_3": "3",
+        "Poster_4": "4",
+        "Poster_5": "5"
     ]
     
     // Reverse mapping (ID to name)

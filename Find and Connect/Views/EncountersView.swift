@@ -78,15 +78,12 @@ struct EncounterCard: View {
     let logType: LogType
     let currentUsername: String
     
-    // Compute the person to display based on the log type and username
     private var otherPersonName: String {
-        // If current user uploaded a tellSet, they were the broadcaster
-        // If current user uploaded a heardSet, they were the listener
-        if logType == .tellLog {
-            // For tellLog, the current user is user1 (broadcaster), so show user2
+        if currentUsername == encounter.user1 {
+
             return encounter.user2
         } else {
-            // For heardLog, the current user is user2 (listener), so show user1
+
             return encounter.user1
         }
     }
