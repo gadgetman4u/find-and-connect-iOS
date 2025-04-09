@@ -202,7 +202,7 @@ async function detectEncounters(heardLog, tellLog) {
     // Execute the Python script with arguments
     const pythonResult = await executePython(PYTHON_SCRIPT, [
       '--max-idle', '3',
-      '--min-duration', '3',
+      '--min-duration', '1',
       '--heard-log', heardLog.path,
       '--tell-log', tellLog.path
     ]);
