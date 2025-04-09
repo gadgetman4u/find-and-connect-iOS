@@ -13,12 +13,12 @@ struct HeardSetView: View {
                         .foregroundColor(.gray)
                         .padding()
                 } else {
-                    ScrollView {
-                        Text(logContents)
-                            .font(.system(size: 8, design: .monospaced))
-                            .padding()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .textSelection(.enabled)
+                                   ScrollView {
+                                       Text(logContents)
+                                           .font(.system(size: 8, design: .monospaced))
+                                           .padding()
+                                           .frame(maxWidth: .infinity, alignment: .leading)
+                                           .textSelection(.enabled)
                     }
                 }
             }
