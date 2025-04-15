@@ -21,6 +21,10 @@ const LogSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  email: {
+    type: String,
+    index: true
+  },
   logType: {
     type: String,
     enum: ['heardLog', 'tellLog'],

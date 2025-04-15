@@ -16,16 +16,17 @@ struct ContentView: View {
     @AppStorage("isLoggedIn") private var isLoggedIn = false
     @AppStorage("username") private var username = ""
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @AppStorage("email") private var email = ""
     let appVersion: String
     
     var body: some View {
         if !hasCompletedOnboarding {
             OnboardingView(isOnboardingCompleted: $hasCompletedOnboarding)
         } else if !isLoggedIn {
-            LoginView(isLoggedIn: $isLoggedIn, username: $username)
+            LoginView(isLoggedIn: $isLoggedIn, username: $username, email: $email)
         } else {
             // Only initialize Bluetooth managers after login
-            MainAppContent(username: username, appVersion: appVersion)
+            MainAppContent(username: username, email: email, appVersion: appVersion)
         }
     }
 }
@@ -44,6 +45,7 @@ struct MainAppContent: View {
     @State private var showingHelpInfo = false
     
     let username: String
+    let email: String
     let appVersion: String
     
     let center = UNUserNotificationCenter.current()
@@ -109,7 +111,8 @@ struct MainAppContent: View {
                         isDeviceListExpanded: $isDeviceListExpanded,
                         showingTellSetLog: $showingTellSetLog,
                         showingHeardSetLog: $showingHeardSetLog,
-                        username: username
+                        username: username,
+                        email: email
                     )
                 }
                 

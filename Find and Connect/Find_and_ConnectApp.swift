@@ -10,7 +10,7 @@ import SwiftUI
 @main
 struct Find_and_ConnectApp: App {
     
-    let appVersion = "1.6" // App version for version control
+    let appVersion = "1.7" // App version for version control
     
     var body: some Scene {
         WindowGroup {

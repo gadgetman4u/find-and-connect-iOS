@@ -20,17 +20,19 @@ enum LogType: String {
 }
 
 class APIManager {
-    // Base URL
+//     Base URL
     private let baseURL = "https://dev-msn-encounters-be-f0d4fvbdeef7g8dj.centralus-01.azurewebsites.net/api"
+//    private let baseURL = "http://10.194.213.230:8080/api"
     
     // Singleton instance
     static let shared = APIManager()
     
     private init() {}
     
-    func uploadLog(logContent: String, username: String, logType: LogType) async throws -> UploadResponse {
+    func uploadLog(logContent: String, username: String, email: String, logType: LogType) async throws -> UploadResponse {
         print("⬆️ Starting upload for \(logType.rawValue)")
         print("👤 Username: \(username)")
+        print("📧 Email: \(email)")
         
         // Set up URL
         guard let url = URL(string: "\(baseURL)/logs/upload") else {
@@ -52,12 +54,17 @@ class APIManager {
         body.append("Content-Disposition: form-data; name=\"username\"\r\n\r\n".data(using: .utf8)!)
         body.append("\(username)\r\n".data(using: .utf8)!)
         
+        // Add email field
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"email\"\r\n\r\n".data(using: .utf8)!)
+        body.append("\(email)\r\n".data(using: .utf8)!)
+        
         // Add logType field
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"logType\"\r\n\r\n".data(using: .utf8)!)
         body.append("\(logType.rawValue)\r\n".data(using: .utf8)!)
         
-        // Add file field - this was incorrect in your implementation
+        // Add file field
         let filename = "\(logType.rawValue)_\(username).txt"
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
