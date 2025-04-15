@@ -22,6 +22,7 @@ class MainContentViewModel: ObservableObject {
     @Published var showingAlert = false
     @Published var alertMessage = ""
     @Published var username: String
+    @Published var email: String
     
     // MARK: - Bluetooth Content Properties
     @Published var showingHeardLog = false
@@ -64,11 +65,12 @@ class MainContentViewModel: ObservableObject {
     @Published var lastUploadedLogType: LogType = .tellLog
     
     // MARK: - Initialization
-    init(beaconManager: BeaconScanManager, deviceManager: DeviceScanManager, peripheralManager: BluetoothPeripheralManager, username: String = "") {
+    init(beaconManager: BeaconScanManager, deviceManager: DeviceScanManager, peripheralManager: BluetoothPeripheralManager, username: String = "", email: String = "") {
         self.beaconManager = beaconManager
         self.deviceManager = deviceManager
         self.peripheralManager = peripheralManager
-        self.username = username.isEmpty ? UserDefaults.standard.string(forKey: "username") ?? "" : username
+        self.username = username
+        self.email = email
         
         // Start initial load animation
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -252,25 +254,26 @@ class MainContentViewModel: ObservableObject {
                 logContent = peripheralManager.getTellLog()
             }
             
-            // Upload using API∫Manager
-            let response = try await APIManager.shared.uploadLog(
+            // Upload using APIManager
+            let result = try await APIManager.shared.uploadLog(
                 logContent: logContent,
                 username: username,
+                email: email,
                 logType: logType
             )
             
             // Store the response for the encounters view
             await MainActor.run {
-                self.uploadResponse = response
+                self.uploadResponse = result
                 self.isUploading = false
                 
                 // Use optional chaining and nil-coalescing to safely check the array
-                let encounterCount = response.encounters?.count ?? 0
+                let encounterCount = result.encounters?.count ?? 0
                 if encounterCount > 0 {
                     self.showingEncountersView = true
                 } else {
                     // Otherwise just show a success message
-                    self.uploadMessage = "Upload successful: \(response.message)"
+                    self.uploadMessage = "Upload successful: \(result.message)"
                     self.showUploadAlert = true
                 }
             }

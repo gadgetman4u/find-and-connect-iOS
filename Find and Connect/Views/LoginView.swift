@@ -11,7 +11,16 @@ import SwiftUI
 struct LoginView: View {
     @Binding var isLoggedIn: Bool
     @Binding var username: String
+    @Binding var email: String
     @State private var inputName: String = ""
+    @State private var inputEmail: String = ""
+    @State private var showEmailError = false
+    
+    var isEmailValid: Bool {
+        let emailRegEx = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}"
+        let emailPred = NSPredicate(format:"SELF MATCHES %@", emailRegEx)
+        return emailPred.evaluate(with: inputEmail)
+    }
     
     var body: some View {
         ZStack {
@@ -35,13 +44,34 @@ struct LoginView: View {
                         .padding(.horizontal)
                         .autocapitalization(.words)
                     
+                    TextField("Enter your email", text: $inputEmail)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .font(.system(size: 18))
+                        .padding(.horizontal)
+                        .autocapitalization(.none)
+                        .keyboardType(.emailAddress)
+                        .autocorrectionDisabled()
+                    
+                    if showEmailError {
+                        Text("Please enter a valid email address")
+                            .foregroundColor(.red)
+                            .font(.system(size: 14))
+                    }
+                    
                     Button(action: {
-                        if !inputName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        let isNameValid = !inputName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        
+                        if isNameValid && isEmailValid {
                             username = inputName
+                            email = inputEmail
                             isLoggedIn = true
                             // save to UserDefaults
                             UserDefaults.standard.set(inputName, forKey: "username")
+                            UserDefaults.standard.set(inputEmail, forKey: "email")
                             UserDefaults.standard.set(true, forKey: "isLoggedIn")
+                            showEmailError = false
+                        } else if !isEmailValid {
+                            showEmailError = true
                         }
                     }) {
                         Text("Continue")
