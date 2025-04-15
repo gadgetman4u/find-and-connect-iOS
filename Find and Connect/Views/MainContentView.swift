@@ -63,7 +63,7 @@ struct MainContentView: View {
     @Binding var showingHeardSetLog: Bool
     
     // Initialize with dependencies and create the ViewModel
-    init(beaconManager: BeaconScanManager, deviceManager: DeviceScanManager, peripheralManager: BluetoothPeripheralManager, isDeviceListExpanded: Binding<Bool>, showingTellSetLog: Binding<Bool>, showingHeardSetLog: Binding<Bool>, username: String) {
+    init(beaconManager: BeaconScanManager, deviceManager: DeviceScanManager, peripheralManager: BluetoothPeripheralManager, isDeviceListExpanded: Binding<Bool>, showingTellSetLog: Binding<Bool>, showingHeardSetLog: Binding<Bool>, username: String, email: String) {
         self._isDeviceListExpanded = isDeviceListExpanded
         self._showingTellSetLog = showingTellSetLog
         self._showingHeardSetLog = showingHeardSetLog
@@ -72,7 +72,8 @@ struct MainContentView: View {
             beaconManager: beaconManager, 
             deviceManager: deviceManager, 
             peripheralManager: peripheralManager, 
-            username: username
+            username: username,
+            email: email
         ))
     }
     
@@ -340,6 +341,6 @@ struct CardButtonStyle: ButtonStyle {
 // Preview
 struct MainContentView_Previews: PreviewProvider {
     static var previews: some View {
-        MainContentView(beaconManager: BeaconScanManager(), deviceManager: DeviceScanManager(), peripheralManager: BluetoothPeripheralManager(), isDeviceListExpanded: .constant(false), showingTellSetLog: .constant(false), showingHeardSetLog: .constant(false), username: "John Doe")
+        MainContentView(beaconManager: BeaconScanManager(), deviceManager: DeviceScanManager(), peripheralManager: BluetoothPeripheralManager(), isDeviceListExpanded: .constant(false), showingTellSetLog: .constant(false), showingHeardSetLog: .constant(false), username: "John Doe", email: "john.doe@example.com")
     }
 }

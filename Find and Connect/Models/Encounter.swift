@@ -9,7 +9,23 @@ import Foundation
 
 struct UploadResponse: Codable {
     let message: String
+    let log: LogInfo?
     let encounters: [Encounter]?
+    let otherUsers: [OtherUser]?
+    
+    struct LogInfo: Codable {
+        let filename: String
+        let originalName: String
+        let path: String
+        let size: Int
+        let username: String
+        let email: String
+        let logType: String
+        let processed: Bool
+        let _id: String
+        let uploadDate: String
+        let __v: Int
+    }
 }
 
 struct Encounter: Codable {
@@ -19,5 +35,14 @@ struct Encounter: Codable {
     let endTime: String
     let encounterLocation: String
     let encounterDuration: Int
+}
+
+struct OtherUser: Codable, Identifiable {
+    let username: String
+    let email: String
+    let encounters: Int
+    
+    // Use username as the identifier
+    var id: String { username }
 }
 

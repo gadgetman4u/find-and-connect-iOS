@@ -23,7 +23,8 @@ class BeaconScanManager: NSObject, ObservableObject, CBCentralManagerDelegate {
         "Poster_2": "2",
         "Poster_3": "3",
         "Poster_4": "4",
-        "Poster_5": "5"
+        "Poster_5": "5",
+        "DPI_20_2049": "6"
     ]
     
     // Reverse mapping (ID to name)

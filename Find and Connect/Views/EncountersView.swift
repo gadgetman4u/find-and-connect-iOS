@@ -8,16 +8,28 @@ struct EncountersView: View {
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 16) {
-                // Header with summary
-                summaryHeader
-                
-                // List of encounters
-                encountersList
-                
-                Spacer()
+            ScrollView {
+                VStack(spacing: 16) {
+                    // Header with summary
+                    summaryHeader
+                    
+                    // List of encounters
+                    encountersList
+                    
+                    // New section for other users
+                    if let otherUsers = response.otherUsers, !otherUsers.isEmpty {
+                        otherUsersSection
+                    }
+                    
+                    // New section for log details
+                    if let log = response.log {
+                        logDetailsSection(log: log)
+                    }
+                    
+                    Spacer()
+                }
+                .padding()
             }
-            .padding()
             .navigationTitle("Encounters")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -53,23 +65,111 @@ struct EncountersView: View {
     }
     
     private var encountersList: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                if let encounters = response.encounters, !encounters.isEmpty {
-                    ForEach(encounters, id: \.self) { encounter in
-                        EncounterCard(
-                            encounter: encounter,
-                            logType: logType,
-                            currentUsername: currentUsername
-                        )
-                    }
-                } else {
-                    Text("No encounters found")
-                        .foregroundColor(.secondary)
-                        .padding()
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Your Encounters")
+                .font(.headline)
+                .padding(.vertical, 4)
+            
+            if let encounters = response.encounters, !encounters.isEmpty {
+                ForEach(encounters, id: \.self) { encounter in
+                    EncounterCard(
+                        encounter: encounter,
+                        logType: logType,
+                        currentUsername: currentUsername
+                    )
                 }
+            } else {
+                Text("No encounters found")
+                    .foregroundColor(.secondary)
+                    .padding()
             }
         }
+    }
+    
+    // New section for other users
+    private var otherUsersSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("People You've Met")
+                .font(.headline)
+                .padding(.vertical, 4)
+            
+            ForEach(response.otherUsers!) { user in
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(user.username)
+                            .font(.system(size: 16, weight: .semibold))
+                        
+                        Text(user.email)
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Text("\(user.encounters) \(user.encounters == 1 ? "encounter" : "encounters")")
+                        .font(.system(size: 14))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.purple.opacity(0.1))
+                        .cornerRadius(8)
+                }
+                .padding()
+                .background(Color(.systemGray5))
+                .cornerRadius(10)
+            }
+        }
+    }
+    
+    // New section for log details
+    private func logDetailsSection(log: UploadResponse.LogInfo) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Log Details")
+                .font(.headline)
+                .padding(.vertical, 4)
+            
+            Group {
+                InfoRow(label: "File", value: log.originalName)
+                InfoRow(label: "Size", value: "\(log.size) bytes")
+                InfoRow(label: "User", value: log.username)
+                InfoRow(label: "Type", value: log.logType)
+                InfoRow(label: "Uploaded", value: formatDate(log.uploadDate))
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+    
+    private func formatDate(_ dateString: String) -> String {
+        // Convert ISO date string to readable format
+        let formatter = ISO8601DateFormatter()
+        if let date = formatter.date(from: dateString) {
+            let displayFormatter = DateFormatter()
+            displayFormatter.dateStyle = .medium
+            displayFormatter.timeStyle = .short
+            return displayFormatter.string(from: date)
+        }
+        return dateString
+    }
+}
+
+// Helper view for displaying log info rows
+struct InfoRow: View {
+    let label: String
+    let value: String
+    
+    var body: some View {
+        HStack {
+            Text(label + ":")
+                .font(.system(size: 14, weight: .medium))
+                .frame(width: 70, alignment: .leading)
+            
+            Text(value)
+                .font(.system(size: 14))
+            
+            Spacer()
+        }
+        .padding(.vertical, 2)
     }
 }
 
@@ -147,33 +247,3 @@ extension Encounter: Hashable {
                lhs.encounterLocation == rhs.encounterLocation
     }
 }
-
-struct EncountersView_Previews: PreviewProvider {
-    static var previews: some View {
-        let sampleEncounters = [
-            Encounter(
-                user1: "Alice",
-                user2: "Bob",
-                startTime: "2023-04-01 13:45:00",
-                endTime: "2023-04-01 14:15:00",
-                encounterLocation: "Conference Room",
-                encounterDuration: 1800
-            ),
-            Encounter(
-                user1: "Alice",
-                user2: "Charlie",
-                startTime: "2023-04-01 15:00:00",
-                endTime: "2023-04-01 15:10:00",
-                encounterLocation: "Kitchen",
-                encounterDuration: 600
-            )
-        ]
-        
-        let response = UploadResponse(
-            message: "Log processed successfully",
-            encounters: sampleEncounters
-        )
-        
-        return EncountersView(response: response, logType: .tellLog, currentUsername: "Alice")
-    }
-} 

@@ -82,7 +82,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     }
 
     // Get user type and log type from request
-    const { username, logType } = req.body;
+    const { username, logType, email } = req.body;
     
     if (!username || !logType) {
       return res.status(400).json({ message: 'Username and log type are required' });
@@ -110,6 +110,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       path: req.file.path,
       size: req.file.size,
       username,
+      email,
       logType,
       processed: false
     });
@@ -134,6 +135,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
     // After saving the log, process for encounters but don't store them
     let encounters = [];
+    let otherUsersData = [];
     
     // Find users with opposite log type
     const oppositeLogType = logType === 'heardLog' ? 'tellLog' : 'heardLog';
@@ -151,6 +153,15 @@ router.post('/upload', upload.single('file'), async (req, res) => {
         ? await detectEncounters(log, otherLog)
         : await detectEncounters(otherLog, log);
       
+      // If encounters were found, add the user's data
+      if (userEncounters && userEncounters.length > 0) {
+        otherUsersData.push({
+          username: otherLog.username,
+          email: otherLog.email,
+          encounters: userEncounters.length
+        });
+      }
+      
       // Add these encounters to our results
       encounters = [...encounters, ...userEncounters];
     }
@@ -163,7 +174,8 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     res.status(201).json({
       message: `Log uploaded successfully. Found ${encounters.length} potential encounters.`,
       log,
-      encounters
+      encounters,
+      otherUsers: otherUsersData
     });
   } catch (error) {
     console.error('Upload error:', error);
