@@ -46,12 +46,10 @@ class LogModifier {
     
     private func writeTellSetToCSV() {
         let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm:ss"
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
         let timeString = formatter.string(from: Date(timeIntervalSince1970: timestamp))
-        let microseconds = String(format: "%.6f", timestamp.truncatingRemainder(dividingBy: 1)).dropFirst()
-        let preciseTime = timeString + microseconds
         
-        let logEntry = "\(preciseTime),\(eid),\(username),\(locationId)\n"
+        let logEntry = "\(timeString),\(eid),\(username),\(locationId)\n"
         
         writeToFile(logEntry)
     }
@@ -69,13 +67,11 @@ class LogModifier {
     
     private func writeHeardSetToCSV() {
         let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm:ss"
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
         let timeString = formatter.string(from: Date(timeIntervalSince1970: timestamp))
-        let microseconds = String(format: "%.6f", timestamp.truncatingRemainder(dividingBy: 1)).dropFirst()
-        let preciseTime = timeString + microseconds
         
         // Format: timestamp,eid,location,rssi,username
-        let logEntry = "\(preciseTime),\(eid),\(locationId),\(rssi?.stringValue ?? "N/A"),\(username)\n"
+        let logEntry = "\(timeString),\(eid),\(locationId),\(rssi?.stringValue ?? "N/A"),\(username)\n"
         
         writeToFile(logEntry)
     }
@@ -255,16 +251,22 @@ class LogModifier {
     }
     
     private func formatTimestampForServer(_ timestamp: String) -> String {
-        // Convert HH:mm:ss.microseconds to YYYY-MM-DD-HH:mm:ss format
+        // Timestamp includes date and time (yyyy-MM-dd HH:mm:ss)
+        // Extract date and time parts
+        let components = timestamp.components(separatedBy: " ")
+        if components.count >= 2 {
+            let date = components[0]
+            let time = components[1]
+            
+            return "\(date)-\(time)"
+        }
+        
+        // Fallback in case the format is unexpected
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
         let currentDate = dateFormatter.string(from: Date())
         
-        // Take just the HH:mm:ss part from the timestamp
-        let timeParts = timestamp.components(separatedBy: ".")
-        let timeComponent = timeParts.first ?? "00:00:00"
-        
-        return "\(currentDate)-\(timeComponent)"
+        return "\(currentDate)-\(timestamp)"
     }
     
     func deleteLogFromServer(logId: String, completion: @escaping (Bool, String?) -> Void) {

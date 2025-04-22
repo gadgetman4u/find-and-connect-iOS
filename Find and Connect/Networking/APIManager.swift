@@ -21,8 +21,8 @@ enum LogType: String {
 
 class APIManager {
 //     Base URL
-    private let baseURL = "https://dev-msn-encounters-be-f0d4fvbdeef7g8dj.centralus-01.azurewebsites.net/api"
-//    private let baseURL = "http://10.194.213.230:8080/api"
+//    private let baseURL = "https://dev-msn-encounters-be-f0d4fvbdeef7g8dj.centralus-01.azurewebsites.net/api"
+    private let baseURL = "http://10.194.213.230:8080/api"
     
     // Singleton instance
     static let shared = APIManager()

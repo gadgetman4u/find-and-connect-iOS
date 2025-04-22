@@ -1,18 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const upload = require('../middleware/upload');
-const Log = require('../models/Log');
+const { Logs } = require('../models/Log');
 const HeardLog = require('../models/HeardLog');
 const TellLog = require('../models/TellLog');
 const path = require('path');
 const fs = require('fs');
-const { processLogs, detectEncounters } = require('../utils/encounterDetector');
-const Encounter = require('../models/Encounter');
+const { processLogs, detectEncounters, syncUserEncounters } = require('../utils/encounterDetector');
+const { Encounter } = require('../models/Encounter');
+const User = require('../models/User');
 
 // Create a reusable function for log deletion
 async function deleteUserLogs(username, logType) {
   // Find all logs matching criteria
-  const logs = await Log.find({ username, logType }).sort({ uploadDate: -1 });
+  const logs = await Logs.find({ username, logType }).sort({ uploadDate: -1 });
   
   console.log(`Found ${logs.length} logs for ${username} of type ${logType}`);
   
@@ -56,7 +57,7 @@ async function deleteUserLogs(username, logType) {
   }
   
   // Delete from database
-  const result = await Log.deleteMany({ username, logType });
+  const result = await Logs.deleteMany({ username, logType });
   console.log(`Deleted ${result.deletedCount} logs from the main Log collection`);
   
   return {
@@ -93,7 +94,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     }
 
     // Check if the user already has a log of this type
-    const existingLog = await Log.findOne({ username, logType });
+    const existingLog = await Logs.findOne({ username, logType });
     
     if (existingLog) {
       console.log(`User ${username} already has a ${logType}, deleting it.`);
@@ -104,7 +105,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     }
 
     // Create log document in the generic Log collection
-    const log = new Log({
+    const log = new Logs({
       filename: req.file.filename,
       originalName: req.file.originalname,
       path: req.file.path,
@@ -117,6 +118,33 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 
     // Save to database
     await log.save();
+    
+    // Find or create User document - no userId needed, will use MongoDB's _id
+    let user = await User.findOne({ username });
+    
+    // If user doesn't exist, create a new one
+    if (!user) {
+      user = new User({
+        username,
+        encounters: []
+      });
+    }
+    
+    // Update the appropriate log field
+    if (logType === 'heardLog') {
+      user.heardLog = log;
+    } else {
+      user.tellLog = log;
+    }
+    
+    // Save user - handle potential errors with a cleaner approach
+    try {
+      await user.save();
+    } catch (error) {
+      console.error('Error saving user:', error.message);
+      // Continue with the process even if user save fails
+      // We'll at least have the log saved
+    }
     
     // Create type-specific log document
     if (logType === 'heardLog') {
@@ -133,13 +161,14 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       await tellLog.save();
     }
 
-    // After saving the log, process for encounters but don't store them
+    // Process logs to find and save encounters
     let encounters = [];
+    let savedEncountersCount = 0;
     let otherUsersData = [];
     
     // Find users with opposite log type
     const oppositeLogType = logType === 'heardLog' ? 'tellLog' : 'heardLog';
-    const otherUsers = await Log.find({ 
+    const otherUsers = await Logs.find({ 
       username: { $ne: username },
       logType: oppositeLogType 
     });
@@ -148,7 +177,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     
     // For each user with the opposite log type
     for (const otherLog of otherUsers) {
-      // Process encounters between the new log and this user's opposite type log
+      // First detect encounters between the new log and this user's opposite type log
       const userEncounters = logType === 'heardLog' 
         ? await detectEncounters(log, otherLog)
         : await detectEncounters(otherLog, log);
@@ -160,9 +189,39 @@ router.post('/upload', upload.single('file'), async (req, res) => {
           email: otherLog.email,
           encounters: userEncounters.length
         });
+        
+        // Now save each encounter to the database
+        for (const encounter of userEncounters) {
+          try {
+            // Check if encounter already exists
+            const existingEncounter = await Encounter.findOne({
+              user1: encounter.user1,
+              user2: encounter.user2,
+              startTime: encounter.startTime,
+              endTime: encounter.endTime
+            });
+            
+            if (!existingEncounter) {
+              // Create a new encounter record
+              const newEncounter = new Encounter({
+                user1: encounter.user1,
+                user2: encounter.user2,
+                startTime: encounter.startTime,
+                endTime: encounter.endTime,
+                encounterLocation: encounter.encounterLocation,
+                encounterDuration: encounter.encounterDuration
+              });
+              
+              await newEncounter.save();
+              savedEncountersCount++;
+            }
+          } catch (error) {
+            console.error('Error saving encounter:', error);
+          }
+        }
       }
       
-      // Add these encounters to our results
+      // Add these encounters to our results for display
       encounters = [...encounters, ...userEncounters];
     }
     
@@ -170,9 +229,20 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     log.processed = true;
     await log.save();
     
+    // Sync encounters to users
+    if (savedEncountersCount > 0) {
+      console.log(`Saved ${savedEncountersCount} encounters, syncing with users...`);
+      await syncUserEncounters(username);
+      
+      // Sync with other users who had encounters
+      for (const userData of otherUsersData) {
+        await syncUserEncounters(userData.username);
+      }
+    }
+    
     // Return the log and encounters directly
     res.status(201).json({
-      message: `Log uploaded successfully. Found ${encounters.length} potential encounters.`,
+      message: `Log uploaded successfully. Found ${encounters.length} potential encounters, saved ${savedEncountersCount}.`,
       log,
       encounters,
       otherUsers: otherUsersData
@@ -186,7 +256,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 // Get logs by user ID
 router.get('/user/:username', async (req, res) => {
   try {
-    const logs = await Log.find({ username: req.params.username }).sort({ uploadDate: -1 });
+    const logs = await Logs.find({ username: req.params.username }).sort({ uploadDate: -1 });
     res.status(200).json({ logs });
   } catch (error) {
     console.error('Error fetching logs:', error);
@@ -197,7 +267,7 @@ router.get('/user/:username', async (req, res) => {
 // Get all logs
 router.get('/', async (req, res) => {
   try {
-    const logs = await Log.find().sort({ uploadDate: -1 });
+    const logs = await Logs.find().sort({ uploadDate: -1 });
     res.status(200).json({ logs });
   } catch (error) {
     console.error('Error fetching logs:', error);
@@ -238,7 +308,7 @@ router.delete('/delete/type/:logType', async (req, res) => {
     }
     
     // Find all logs of this type first
-    const logs = await Log.find({ logType });
+    const logs = await Logs.find({ logType });
     
     // Delete physical files
     let filesDeleted = 0;
@@ -250,7 +320,7 @@ router.delete('/delete/type/:logType', async (req, res) => {
     }
     
     // Delete from database
-    const result = await Log.deleteMany({ logType });
+    const result = await Logs.deleteMany({ logType });
     
     res.status(200).json({ 
       message: `Deleted ${result.deletedCount} ${logType}s and ${filesDeleted} files`,
@@ -267,7 +337,7 @@ router.delete('/delete/type/:logType', async (req, res) => {
 router.delete('/delete/all', async (req, res) => {
   try {
     // Find all logs first
-    const logs = await Log.find({});
+    const logs = await Logs.find({});
     
     // Delete physical files
     let filesDeleted = 0;
@@ -279,7 +349,7 @@ router.delete('/delete/all', async (req, res) => {
     }
     
     // Delete from database
-    const result = await Log.deleteMany({});
+    const result = await Logs.deleteMany({});
     
     res.status(200).json({ 
       message: `Deleted ${result.deletedCount} logs and ${filesDeleted} files`,
@@ -302,7 +372,7 @@ router.post('/process-encounters', async (req, res) => {
     }
     
     // Find logs for this user
-    const logs = await Log.find({ username });
+    const logs = await Logs.find({ username });
     
     if (logs.length === 0) {
       return res.status(404).json({ message: 'No logs found for this user', encounters: 0 });
@@ -351,8 +421,8 @@ router.post('/test-python-algorithm', async (req, res) => {
     }
     
     // Get logs
-    const heardLog = await Log.findById(heardLogId);
-    const tellLog = await Log.findById(tellLogId);
+    const heardLog = await Logs.findById(heardLogId);
+    const tellLog = await Logs.findById(tellLogId);
     
     if (!heardLog || !tellLog) {
       return res.status(404).json({ message: 'One or both logs not found' });

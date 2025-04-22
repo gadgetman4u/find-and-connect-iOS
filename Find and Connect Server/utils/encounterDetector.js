@@ -1,10 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
-const Log = require('../models/Log');
-const Encounter = require('../models/Encounter');
+const { Logs } = require('../models/Log');
+const { Encounter } = require('../models/Encounter');
 const HeardLog = require('../models/HeardLog');
 const TellLog = require('../models/TellLog');
+const User = require('../models/User');
 
 // Path to the Python script
 const PYTHON_SCRIPT = path.join(__dirname, '..', 'python', 'EncounterAlgorithm.py');
@@ -67,7 +68,7 @@ function getPythonCommand() {
 async function processLogs(logId, logType, targetUsername = null) {
   try {
     // Get the log from the main Log collection
-    const log = await Log.findById(logId);
+    const log = await Logs.findById(logId);
     if (!log) {
       console.error('Log not found:', logId);
       return 0;
@@ -88,7 +89,7 @@ async function processLogs(logId, logType, targetUsername = null) {
     }
     
     // Find potential matching logs based on query
-    const potentialMatches = await Log.find(query);
+    const potentialMatches = await Logs.find(query);
     console.log(`Found ${potentialMatches.length} potential matching logs`);
     
     if(potentialMatches.length == 0) {
@@ -98,6 +99,8 @@ async function processLogs(logId, logType, targetUsername = null) {
 
     // Process each potential match
     let encountersFound = 0;
+    let usersToSync = new Set([log.username]);
+    
     for (const otherLog of potentialMatches) {
       // Determine which is the heardLog and which is the tellLog
       const heardLog = logType === 'heardLog' ? log : otherLog;
@@ -106,6 +109,11 @@ async function processLogs(logId, logType, targetUsername = null) {
       // Check for encounters using the Python script
       const encounters = await checkForEncountersPython(heardLog, tellLog);
       encountersFound += encounters.length;
+      
+      // Add other user to sync list if encounters were found
+      if (encounters.length > 0) {
+        usersToSync.add(otherLog.username);
+      }
     }
     
     console.log(`Detection complete. Found ${encountersFound} encounters.`);
@@ -113,6 +121,12 @@ async function processLogs(logId, logType, targetUsername = null) {
     // Mark log as processed
     log.processed = true;
     await log.save();
+    
+    // Sync encounters for all affected users
+    console.log(`Syncing encounters for ${usersToSync.size} users`);
+    for (const username of usersToSync) {
+      await syncUserEncounters(username);
+    }
     
     return encountersFound;
   } catch (error) {
@@ -187,9 +201,55 @@ async function saveEncounter(heardLog, tellLog, encounter) {
     console.log('New encounter object:', newEncounter);
     await newEncounter.save();
     console.log('Encounter saved successfully');
+    
+    // Sync encounters to user documents
+    await syncUserEncounters(heardLog.username);
+    await syncUserEncounters(tellLog.username);
+    
     return true;
   } catch (error) {
     console.error('Error saving encounter:', error);
+    return false;
+  }
+}
+
+// Sync standalone encounters with user documents
+async function syncUserEncounters(username) {
+  try {
+    console.log(`Syncing encounters for user: ${username}`);
+    
+    // Get all encounters for this user
+    const encounters = await Encounter.find({
+      $or: [{ user1: username }, { user2: username }]
+    });
+    
+    console.log(`Found ${encounters.length} encounters for user ${username}`);
+    
+    // Find the user
+    const user = await User.findOne({ username });
+    if (!user) {
+      console.error(`User ${username} not found for encounter sync`);
+      return false;
+    }
+    
+    // Convert standalone encounters to embedded format
+    const embeddedEncounters = encounters.map(encounter => ({
+      user1: encounter.user1,
+      user2: encounter.user2,
+      startTime: encounter.startTime,
+      endTime: encounter.endTime,
+      encounterLocation: encounter.encounterLocation,
+      encounterDuration: encounter.encounterDuration
+    }));
+    
+    // Update the user's encounters array
+    user.encounters = embeddedEncounters;
+    await user.save();
+    console.log(`Updated user ${username} with ${embeddedEncounters.length} encounters`);
+    
+    return true;
+  } catch (error) {
+    console.error('Error syncing user encounters:', error);
     return false;
   }
 }
@@ -233,5 +293,6 @@ async function detectEncounters(heardLog, tellLog) {
 module.exports = {
   processLogs,         // Keep the old function for compatibility
   detectEncounters,    // Add the new function that doesn't save to DB
-  checkForEncountersPython
+  checkForEncountersPython,
+  syncUserEncounters   // Export the new sync function
 }; 

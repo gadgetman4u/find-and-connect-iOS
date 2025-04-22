@@ -1,23 +1,27 @@
 const mongoose = require('mongoose');
+const { LogSchema } = require('./Log.js');
+const { EncounterSchema } = require('./Encounter.js')
 
 const UserSchema = new mongoose.Schema({
-  userId: {
+  username: {
     type: String,
     required: true,
     unique: true
   },
-  username: {
-    type: String,
+  heardLog: {
+    type: LogSchema,
+    required: false
+  },
+  tellLog: {
+    type: LogSchema,
+    required: false
+  },
+  encounters: {
+    type: [EncounterSchema],
     required: true
-  },
-  lastActive: {
-    type: Date,
-    default: Date.now
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
   }
+}, {
+  timestamps: true
 });
 
 module.exports = mongoose.model('User', UserSchema); 
