@@ -107,4 +107,8 @@ function encounterTemplate(users) {
   `;
 }
 
+<<<<<<< HEAD
 module.exports = encounterTemplate; 
+=======
+module.exports = encounterTemplate; 
+>>>>>>> 6d3b67ac13132399b7a4bb382d87ad84b79ad01a

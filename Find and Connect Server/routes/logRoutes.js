@@ -10,70 +10,9 @@ const { processLogs, detectEncounters, syncUserEncounters } = require('../utils/
 const { Encounter } = require('../models/Encounter');
 const User = require('../models/User');
 
-// Create a reusable function for log deletion
-async function deleteUserLogs(username, logType) {
-  // Find all logs matching criteria
-  const logs = await Logs.find({ username, logType }).sort({ uploadDate: -1 });
-  
-  console.log(`Found ${logs.length} logs for ${username} of type ${logType}`);
-  
-  // Delete physical files and associated records
-  let filesDeleted = 0;
-  for (const log of logs) {
-    if (log.path) {
-      // Check if the path is already absolute
-      const filePath = path.isAbsolute(log.path) 
-        ? log.path 
-        : path.join(__dirname, '..', log.path);
-      
-      console.log(`Attempting to delete file: ${filePath}`);
-      
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-        console.log(`Deleted file: ${filePath}`);
-        filesDeleted++;
-      } else {
-        console.log(`File not found: ${filePath}`);
-      }
-    }
-    
-    // Delete type-specific entries
-    if (logType === 'heardLog') {
-      const deleted = await HeardLog.deleteMany({ logId: log._id });
-      console.log(`Deleted ${deleted.deletedCount} HeardLog entries`);
-    } else {
-      const deleted = await TellLog.deleteMany({ logId: log._id });
-      console.log(`Deleted ${deleted.deletedCount} TellLog entries`);
-    }
-    
-    // Also delete any encounters that used this log
-    if (logType === 'heardLog') {
-      const deleted = await Encounter.deleteMany({ heardLogId: log._id });
-      console.log(`Deleted ${deleted.deletedCount} encounters with this HeardLog`);
-    } else {
-      const deleted = await Encounter.deleteMany({ tellLogId: log._id });
-      console.log(`Deleted ${deleted.deletedCount} encounters with this TellLog`);
-    }
-  }
-  
-  // Delete from database
-  const result = await Logs.deleteMany({ username, logType });
-  console.log(`Deleted ${result.deletedCount} logs from the main Log collection`);
-  
-  return {
-    count: result.deletedCount,
-    filesDeleted
-  };
-}
-
-// Create a handler function that can be called internally or via the API
-async function deleteUserLogsHandler(username, logType) {
-  return await deleteUserLogs(username, logType);
-}
-
-//Upload log file
+//Upload log file without processing encounters
 router.post('/upload', upload.single('file'), async (req, res) => {
-  console.log("==== ROUTE REACHED ====");
+  console.log("==== LOG UPLOAD ROUTE REACHED ====");
   console.log("Body:", JSON.stringify(req.body, null, 2));
   console.log("File:", req.file ? "Present" : "Missing");
   
@@ -126,8 +65,12 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     if (!user) {
       user = new User({
         username,
+        email,   // Add email to new user
         encounters: []
       });
+    } else if (email && (!user.email || user.email !== email)) {
+      // Update email if provided and different from existing
+      user.email = email;
     }
     
     // Update the appropriate log field
@@ -142,135 +85,29 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       await user.save();
     } catch (error) {
       console.error('Error saving user:', error.message);
-      // Continue with the process even if user save fails
-      // We'll at least have the log saved
     }
     
     // Create type-specific log document
     if (logType === 'heardLog') {
       const heardLog = new HeardLog({
         logId: log._id,
-        // Add any heard-specific fields here
       });
       await heardLog.save();
     } else {
       const tellLog = new TellLog({
         logId: log._id,
-        // Add any tell-specific fields here
       });
       await tellLog.save();
     }
 
-    // Process logs to find and save encounters
-    let encounters = [];
-    let savedEncountersCount = 0;
-    let otherUsersData = [];
-    
-    // Find users with opposite log type
-    const oppositeLogType = logType === 'heardLog' ? 'tellLog' : 'heardLog';
-    const otherUsers = await Logs.find({ 
-      username: { $ne: username },
-      logType: oppositeLogType 
-    });
-    
-    console.log(`Found ${otherUsers.length} users with ${oppositeLogType} logs to check against`);
-    
-    // For each user with the opposite log type
-    for (const otherLog of otherUsers) {
-      // First detect encounters between the new log and this user's opposite type log
-      const userEncounters = logType === 'heardLog' 
-        ? await detectEncounters(log, otherLog)
-        : await detectEncounters(otherLog, log);
-      
-      // If encounters were found, add the user's data
-      if (userEncounters && userEncounters.length > 0) {
-        otherUsersData.push({
-          username: otherLog.username,
-          email: otherLog.email,
-          encounters: userEncounters.length
-        });
-        
-        // Now save each encounter to the database
-        for (const encounter of userEncounters) {
-          try {
-            // Check if encounter already exists
-            const existingEncounter = await Encounter.findOne({
-              user1: encounter.user1,
-              user2: encounter.user2,
-              startTime: encounter.startTime,
-              endTime: encounter.endTime
-            });
-            
-            if (!existingEncounter) {
-              // Create a new encounter record
-              const newEncounter = new Encounter({
-                user1: encounter.user1,
-                user2: encounter.user2,
-                startTime: encounter.startTime,
-                endTime: encounter.endTime,
-                encounterLocation: encounter.encounterLocation,
-                encounterDuration: encounter.encounterDuration
-              });
-              
-              await newEncounter.save();
-              savedEncountersCount++;
-            }
-          } catch (error) {
-            console.error('Error saving encounter:', error);
-          }
-        }
-      }
-      
-      // Add these encounters to our results for display
-      encounters = [...encounters, ...userEncounters];
-    }
-    
-    // Mark the log as processed
-    log.processed = true;
-    await log.save();
-    
-    // Sync encounters to users
-    if (savedEncountersCount > 0) {
-      console.log(`Saved ${savedEncountersCount} encounters, syncing with users...`);
-      await syncUserEncounters(username);
-      
-      // Sync with other users who had encounters
-      for (const userData of otherUsersData) {
-        await syncUserEncounters(userData.username);
-      }
-    }
-    
-    // Return the log and encounters directly
+    // Return the log info without processing encounters
     res.status(201).json({
-      message: `Log uploaded successfully. Found ${encounters.length} potential encounters, saved ${savedEncountersCount}.`,
+      message: `Log uploaded successfully. Ready for encounter processing.`,
       log,
-      encounters,
-      otherUsers: otherUsersData
+      logId: log._id
     });
   } catch (error) {
     console.error('Upload error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// Get logs by user ID
-router.get('/user/:username', async (req, res) => {
-  try {
-    const logs = await Logs.find({ username: req.params.username }).sort({ uploadDate: -1 });
-    res.status(200).json({ logs });
-  } catch (error) {
-    console.error('Error fetching logs:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// Get all logs
-router.get('/', async (req, res) => {
-  try {
-    const logs = await Logs.find().sort({ uploadDate: -1 });
-    res.status(200).json({ logs });
-  } catch (error) {
-    console.error('Error fetching logs:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
@@ -362,8 +199,283 @@ router.delete('/delete/all', async (req, res) => {
   }
 });
 
-// Process encounters for a user
-router.post('/process-encounters', async (req, res) => {
+// Process all encounters for a specific user (comprehensive approach)
+router.post('/process-encounters/:username', async (req, res) => {
+  try {
+    console.log("==== PROCESS ALL ENCOUNTERS ROUTE REACHED ====");
+    
+    const { username } = req.params;
+    console.log(`Processing all encounters for user: ${username}`);
+    
+    // Find user's logs of both types
+    const userLogs = await Logs.find({ username });
+    
+    if (userLogs.length === 0) {
+      return res.status(404).json({ 
+        message: `No logs found for user ${username}`, 
+        success: false 
+      });
+    }
+    
+    // Separate logs by type
+    const heardLogs = userLogs.filter(log => log.logType === 'heardLog');
+    const tellLogs = userLogs.filter(log => log.logType === 'tellLog');
+    
+    console.log(`Found ${heardLogs.length} heard logs and ${tellLogs.length} tell logs for ${username}`);
+    
+    // Find all other users with logs
+    const otherUsersWithLogs = await Logs.distinct('username', { username: { $ne: username } });
+    console.log(`Found ${otherUsersWithLogs.length} other users with logs to compare against`);
+    
+    let allEncounters = [];
+    let savedEncountersCount = 0;
+    let processedUsers = [];
+    
+    // Process user's heard logs against other users' tell logs
+    for (const heardLog of heardLogs) {
+      // Get all tell logs from other users
+      const otherUsersTellLogs = await Logs.find({ 
+        username: { $ne: username },
+        logType: 'tellLog'
+      });
+      
+      console.log(`Processing ${username}'s heard log against ${otherUsersTellLogs.length} tell logs from other users`);
+      
+      for (const tellLog of otherUsersTellLogs) {
+        // Detect encounters
+        const userEncounters = await detectEncounters(heardLog, tellLog);
+        
+        // If encounters were found, process them
+        if (userEncounters && userEncounters.length > 0) {
+          processedUsers.push({
+            username: tellLog.username,
+            encounters: userEncounters.length
+          });
+          
+          // Save each encounter with better duplicate checking
+          for (const encounter of userEncounters) {
+            try {
+              // Get time values for overlap checking
+              const encounterStart = new Date(encounter.startTime);
+              const encounterEnd = new Date(encounter.endTime);
+              
+              // Check for overlapping encounters with same users
+              const user1 = encounter.user1;
+              const user2 = encounter.user2;
+              
+              // Consistent ordering of users for the query
+              const [queryUser1, queryUser2] = [user1, user2].sort();
+              
+              // Find any existing encounters between these users with overlapping time
+              const existingEncounters = await Encounter.find({
+                $or: [
+                  { $and: [{ user1: queryUser1 }, { user2: queryUser2 }] },
+                  { $and: [{ user1: queryUser2 }, { user2: queryUser1 }] }
+                ]
+              });
+              
+              // Check for overlaps
+              let hasOverlap = false;
+              for (const existing of existingEncounters) {
+                const existingStart = new Date(existing.startTime);
+                const existingEnd = new Date(existing.endTime);
+                
+                // Check for time overlap
+                if (
+                  (encounterStart <= existingEnd && encounterEnd >= existingStart) || 
+                  (existingStart <= encounterEnd && existingEnd >= encounterStart)
+                ) {
+                  hasOverlap = true;
+                  break;
+                }
+              }
+              
+              if (!hasOverlap) {
+                // Create a new encounter record
+                const newEncounter = new Encounter({
+                  user1: encounter.user1,
+                  user2: encounter.user2,
+                  startTime: encounter.startTime,
+                  endTime: encounter.endTime,
+                  encounterLocation: encounter.encounterLocation,
+                  encounterDuration: encounter.encounterDuration
+                });
+                
+                await newEncounter.save();
+                savedEncountersCount++;
+              } else {
+                console.log(`Skipping encounter between ${encounter.user1} and ${encounter.user2} at ${encounter.startTime} due to overlap with existing record`);
+              }
+            } catch (error) {
+              console.error('Error saving encounter:', error);
+            }
+          }
+          
+          // Add to all encounters
+          allEncounters = [...allEncounters, ...userEncounters];
+        }
+      }
+      
+      // Mark heard log as processed
+      heardLog.processed = true;
+      await heardLog.save();
+    }
+    
+    // Process user's tell logs against other users' heard logs
+    for (const tellLog of tellLogs) {
+      // Get all heard logs from other users
+      const otherUsersHeardLogs = await Logs.find({ 
+        username: { $ne: username },
+        logType: 'heardLog'
+      });
+      
+      console.log(`Processing ${username}'s tell log against ${otherUsersHeardLogs.length} heard logs from other users`);
+      
+      for (const heardLog of otherUsersHeardLogs) {
+        // Detect encounters (heardLog first, tellLog second in the function call)
+        const userEncounters = await detectEncounters(heardLog, tellLog);
+        
+        // If encounters were found, process them
+        if (userEncounters && userEncounters.length > 0) {
+          processedUsers.push({
+            username: heardLog.username,
+            encounters: userEncounters.length
+          });
+          
+          // Save each encounter with better duplicate checking
+          for (const encounter of userEncounters) {
+            try {
+              // Get time values for overlap checking
+              const encounterStart = new Date(encounter.startTime);
+              const encounterEnd = new Date(encounter.endTime);
+              
+              // Check for overlapping encounters with same users
+              const user1 = encounter.user1;
+              const user2 = encounter.user2;
+              
+              // Consistent ordering of users for the query
+              const [queryUser1, queryUser2] = [user1, user2].sort();
+              
+              // Find any existing encounters between these users with overlapping time
+              const existingEncounters = await Encounter.find({
+                $or: [
+                  { $and: [{ user1: queryUser1 }, { user2: queryUser2 }] },
+                  { $and: [{ user1: queryUser2 }, { user2: queryUser1 }] }
+                ]
+              });
+              
+              // Check for overlaps
+              let hasOverlap = false;
+              for (const existing of existingEncounters) {
+                const existingStart = new Date(existing.startTime);
+                const existingEnd = new Date(existing.endTime);
+                
+                // Check for time overlap
+                if (
+                  (encounterStart <= existingEnd && encounterEnd >= existingStart) || 
+                  (existingStart <= encounterEnd && existingEnd >= encounterStart)
+                ) {
+                  hasOverlap = true;
+                  break;
+                }
+              }
+              
+              if (!hasOverlap) {
+                // Create a new encounter record
+                const newEncounter = new Encounter({
+                  user1: encounter.user1,
+                  user2: encounter.user2,
+                  startTime: encounter.startTime,
+                  endTime: encounter.endTime,
+                  encounterLocation: encounter.encounterLocation,
+                  encounterDuration: encounter.encounterDuration
+                });
+                
+                await newEncounter.save();
+                savedEncountersCount++;
+              } else {
+                console.log(`Skipping encounter between ${encounter.user1} and ${encounter.user2} at ${encounter.startTime} due to overlap with existing record`);
+              }
+            } catch (error) {
+              console.error('Error saving encounter:', error);
+            }
+          }
+          
+          // Add to all encounters
+          allEncounters = [...allEncounters, ...userEncounters];
+        }
+      }
+      
+      // Mark tell log as processed
+      tellLog.processed = true;
+      await tellLog.save();
+    }
+    
+    // Sync encounters for the user
+    await syncUserEncounters(username);
+    
+    // Sync for all other processed users
+    const uniqueProcessedUsers = [...new Set(processedUsers.map(u => u.username))];
+    console.log(`Syncing encounters for ${uniqueProcessedUsers.length} other users`);
+    
+    for (const otherUsername of uniqueProcessedUsers) {
+      await syncUserEncounters(otherUsername);
+    }
+    
+    // Get the updated user with encounters
+    const updatedUser = await User.findOne({ username }).lean();
+    
+    // Return detailed results
+    return res.status(200).json({
+      message: `Processing complete for user ${username}`,
+      success: true,
+      encountersDetected: allEncounters.length,
+      encountersSavedToDatabase: savedEncountersCount,
+      encountersAfterDeduplication: updatedUser ? updatedUser.encounters.length : 0,
+      explanation: "Detected encounters come from log analysis, saved encounters are new ones added to database, and deduplicated encounters are what appears in user profile after merging overlaps.",
+      processedLogs: {
+        heardLogs: heardLogs.length,
+        tellLogs: tellLogs.length
+      },
+      processedWithUsers: uniqueProcessedUsers,
+      userEncounters: updatedUser ? updatedUser.encounters : []
+    });
+    
+  } catch (error) {
+    console.error('Error in comprehensive encounter processing:', error);
+    res.status(500).json({ 
+      message: 'Server error during encounter processing', 
+      error: error.message,
+      success: false
+    });
+  }
+});
+
+// Get logs by user ID
+router.get('/user/:username', async (req, res) => {
+  try {
+    const logs = await Logs.find({ username: req.params.username }).sort({ uploadDate: -1 });
+    res.status(200).json({ logs });
+  } catch (error) {
+    console.error('Error fetching logs:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Get all logs
+router.get('/', async (req, res) => {
+  try {
+    const logs = await Logs.find().sort({ uploadDate: -1 });
+    res.status(200).json({ logs });
+  } catch (error) {
+    console.error('Error fetching logs:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+
+// Process encounters for all user logs (batch processing)
+router.post('/process-user-encounters', async (req, res) => {
   try {
     const { username, targetUsername } = req.body;
     
@@ -411,36 +523,66 @@ router.post('/process-encounters', async (req, res) => {
   }
 });
 
-// Test Python encounter algorithm
-router.post('/test-python-algorithm', async (req, res) => {
-  try {
-    const { heardLogId, tellLogId } = req.body;
-    
-    if (!heardLogId || !tellLogId) {
-      return res.status(400).json({ message: 'Both heardLogId and tellLogId are required' });
+
+// Create a reusable function for log deletion
+async function deleteUserLogs(username, logType) {
+  // Find all logs matching criteria
+  const logs = await Logs.find({ username, logType }).sort({ uploadDate: -1 });
+  
+  console.log(`Found ${logs.length} logs for ${username} of type ${logType}`);
+  
+  // Delete physical files and associated records
+  let filesDeleted = 0;
+  for (const log of logs) {
+    if (log.path) {
+      // Check if the path is already absolute
+      const filePath = path.isAbsolute(log.path) 
+        ? log.path 
+        : path.join(__dirname, '..', log.path);
+      
+      console.log(`Attempting to delete file: ${filePath}`);
+      
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log(`Deleted file: ${filePath}`);
+        filesDeleted++;
+      } else {
+        console.log(`File not found: ${filePath}`);
+      }
     }
     
-    // Get logs
-    const heardLog = await Logs.findById(heardLogId);
-    const tellLog = await Logs.findById(tellLogId);
-    
-    if (!heardLog || !tellLog) {
-      return res.status(404).json({ message: 'One or both logs not found' });
+    // Delete type-specific entries
+    if (logType === 'heardLog') {
+      const deleted = await HeardLog.deleteMany({ logId: log._id });
+      console.log(`Deleted ${deleted.deletedCount} HeardLog entries`);
+    } else {
+      const deleted = await TellLog.deleteMany({ logId: log._id });
+      console.log(`Deleted ${deleted.deletedCount} TellLog entries`);
     }
     
-    // Check for encounters using Python
-    const { checkForEncountersPython } = require('../utils/encounterDetector');
-    const encounters = await checkForEncountersPython(heardLog, tellLog);
-    
-    res.status(200).json({
-      message: 'Python algorithm test completed',
-      encounters: encounters,
-      total: encounters.length
-    });
-  } catch (error) {
-    console.error('Python algorithm test error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    // Also delete any encounters that used this log
+    if (logType === 'heardLog') {
+      const deleted = await Encounter.deleteMany({ heardLogId: log._id });
+      console.log(`Deleted ${deleted.deletedCount} encounters with this HeardLog`);
+    } else {
+      const deleted = await Encounter.deleteMany({ tellLogId: log._id });
+      console.log(`Deleted ${deleted.deletedCount} encounters with this TellLog`);
+    }
   }
-});
+  
+  // Delete from database
+  const result = await Logs.deleteMany({ username, logType });
+  console.log(`Deleted ${result.deletedCount} logs from the main Log collection`);
+  
+  return {
+    count: result.deletedCount,
+    filesDeleted
+  };
+}
+
+// Create a handler function that can be called internally or via the API
+async function deleteUserLogsHandler(username, logType) {
+  return await deleteUserLogs(username, logType);
+}
 
 module.exports = router; 

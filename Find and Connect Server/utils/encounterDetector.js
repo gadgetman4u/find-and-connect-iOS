@@ -232,8 +232,12 @@ async function syncUserEncounters(username) {
       return false;
     }
     
+    // Deduplicate encounters by removing time overlaps
+    const deduplicatedEncounters = deduplicateEncounters(encounters);
+    console.log(`Deduplicated to ${deduplicatedEncounters.length} encounters from ${encounters.length}`);
+    
     // Convert standalone encounters to embedded format
-    const embeddedEncounters = encounters.map(encounter => ({
+    const embeddedEncounters = deduplicatedEncounters.map(encounter => ({
       user1: encounter.user1,
       user2: encounter.user2,
       startTime: encounter.startTime,
@@ -252,6 +256,83 @@ async function syncUserEncounters(username) {
     console.error('Error syncing user encounters:', error);
     return false;
   }
+}
+
+// Helper function to deduplicate encounters by removing overlapping time periods
+function deduplicateEncounters(encounters) {
+  // Group encounters by unique user pairs
+  const groupedEncounters = {};
+  
+  // Sort encounters by startTime for each pair
+  encounters.forEach(encounter => {
+    // Ensure consistent ordering of user1 and user2 for grouping
+    const users = [encounter.user1, encounter.user2].sort();
+    const pairKey = `${users[0]}_${users[1]}`;
+    
+    if (!groupedEncounters[pairKey]) {
+      groupedEncounters[pairKey] = [];
+    }
+    
+    const startTime = new Date(encounter.startTime);
+    const endTime = new Date(encounter.endTime);
+    
+    groupedEncounters[pairKey].push({
+      encounter,
+      startTime,
+      endTime
+    });
+  });
+  
+  // Process each group to remove overlaps
+  const result = [];
+  
+  Object.entries(groupedEncounters).forEach(([pairKey, encounters]) => {
+    console.log(`Deduplicating ${encounters.length} encounters for user pair: ${pairKey}`);
+    
+    // Sort by start time
+    encounters.sort((a, b) => a.startTime - b.startTime);
+    
+    // Process encounters to merge overlapping ones
+    const merged = [];
+    let current = null;
+    
+    encounters.forEach(item => {
+      if (!current) {
+        current = item;
+        return;
+      }
+      
+      // Check for overlap
+      if (item.startTime <= current.endTime) {
+        console.log(`Found overlapping encounters: ${current.encounter.startTime} - ${current.encounter.endTime} overlaps with ${item.encounter.startTime} - ${item.encounter.endTime}`);
+        
+        // Merge by taking later end time
+        if (item.endTime > current.endTime) {
+          console.log(`Extending encounter end time from ${current.encounter.endTime} to ${item.encounter.endTime}`);
+          current.endTime = item.endTime;
+          
+          // Update duration
+          const durationMinutes = Math.round((current.endTime - current.startTime) / (1000 * 60));
+          current.encounter.encounterDuration = durationMinutes;
+          current.encounter.endTime = item.encounter.endTime;
+        }
+      } else {
+        // No overlap, add current to results and set new current
+        merged.push(current.encounter);
+        current = item;
+      }
+    });
+    
+    // Add the last item
+    if (current) {
+      merged.push(current.encounter);
+    }
+    
+    console.log(`Deduplicated from ${encounters.length} to ${merged.length} encounters for pair ${pairKey}`);
+    result.push(...merged);
+  });
+  
+  return result;
 }
 
 // Create a new function that just processes and returns encounters without saving

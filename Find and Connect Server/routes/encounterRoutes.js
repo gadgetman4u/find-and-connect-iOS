@@ -161,4 +161,129 @@ router.post('/sync-all', async (req, res) => {
   }
 });
 
+// Get user encounters with other user details
+router.get('/user-encounters/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+    console.log(`Fetching encounters for user: ${username}`);
+    
+    // First, sync encounters to ensure they're up to date
+    await syncUserEncounters(username);
+    
+    // Get the user with their encounters
+    const user = await User.findOne({ username }).lean();
+    
+    if (!user) {
+      return res.status(404).json({ 
+        message: `User ${username} not found`, 
+        success: false 
+      });
+    }
+    
+    // If no encounters, return empty array
+    if (!user.encounters || user.encounters.length === 0) {
+      return res.status(200).json({
+        message: `No encounters found for user ${username}`,
+        encounters: [],
+        success: true
+      });
+    }
+    
+    // Get all unique usernames from encounters
+    const otherUsernames = new Set();
+    user.encounters.forEach(encounter => {
+      if (encounter.user1 !== username) otherUsernames.add(encounter.user1);
+      if (encounter.user2 !== username) otherUsernames.add(encounter.user2);
+    });
+    
+    // Update emails for users if needed (don't await to avoid slowing down response)
+    Array.from(otherUsernames).forEach(otherUsername => {
+      updateUserEmailIfNeeded(otherUsername);
+    });
+    
+    // Fetch details of all other users involved in encounters
+    const otherUsers = await User.find({
+      username: { $in: Array.from(otherUsernames) }
+    }).select('username email').lean();
+    
+    // Create a map for quick lookup of other user details
+    const userDetailsMap = {};
+    otherUsers.forEach(otherUser => {
+      userDetailsMap[otherUser.username] = {
+        username: otherUser.username,
+        email: otherUser.email || 'No email provided'
+      };
+    });
+    
+    // Enhance encounters and normalize so current user is always user1
+    const enhancedEncounters = user.encounters.map(encounter => {
+      let normalizedEncounter;
+      let otherUsername;
+      
+      // If the current user is already user1, keep it that way
+      if (encounter.user1 === username) {
+        normalizedEncounter = { ...encounter };
+        otherUsername = encounter.user2;
+      } 
+      // If the current user is user2, swap user1 and user2
+      else {
+        normalizedEncounter = {
+          ...encounter,
+          user1: encounter.user2,
+          user2: encounter.user1
+        };
+        otherUsername = encounter.user1;
+      }
+      
+      // Add other user details
+      const otherUserDetails = userDetailsMap[otherUsername] || { 
+        username: otherUsername, 
+        email: 'Unknown' 
+      };
+      
+      return {
+        ...normalizedEncounter,
+        otherUser: otherUserDetails
+      };
+    });
+    
+    return res.status(200).json({
+      message: `Found ${enhancedEncounters.length} encounters for user ${username}`,
+      encounters: enhancedEncounters,
+      success: true
+    });
+  } catch (error) {
+    console.error('Error fetching user encounters:', error);
+    res.status(500).json({ 
+      message: 'Server error', 
+      error: error.message,
+      success: false 
+    });
+  }
+});
+
+// Process all encounters for a specific user (comprehensive approach)
+router.post('/process-encounters/:username', async (req, res) => {
+  // ... existing implementation
+});
+
+// Add a helper function to ensure user email is updated if available in logs
+async function updateUserEmailIfNeeded(username) {
+  try {
+    // Find the user
+    const user = await User.findOne({ username });
+    if (!user || user.email) return; // Already has email or doesn't exist
+    
+    // Check for email in logs
+    const latestLog = await Logs.findOne({ username }).sort({ uploadDate: -1 });
+    if (latestLog && latestLog.email) {
+      user.email = latestLog.email;
+      await user.save();
+      console.log(`Updated email for user ${username} to ${latestLog.email}`);
+    }
+  } catch (error) {
+    console.error(`Error updating email for ${username}:`, error);
+  }
+}
+
 module.exports = router; 
