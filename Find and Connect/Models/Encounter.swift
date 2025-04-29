@@ -28,6 +28,20 @@ struct UploadResponse: Codable {
     }
 }
 
+struct ProcessResponse: Codable {
+    let message: String
+    let encountersDetected: Int
+    let encountersSavedToDatabase: Int
+    let encountersAfterDeduplication: Int
+    let explanation: String
+}
+
+struct UserEncountersResponse: Codable {
+    let message: String
+    let encounters: [Encounter]
+    let success: Bool
+}
+
 struct Encounter: Codable {
     let user1: String
     let user2: String
@@ -35,14 +49,16 @@ struct Encounter: Codable {
     let endTime: String
     let encounterLocation: String
     let encounterDuration: Int
+    let _id: String?
+    let otherUser: OtherUser
 }
 
 struct OtherUser: Codable, Identifiable {
     let username: String
     let email: String
-    let encounters: Int
+    let encounters: Int?
     
-    // Use username as the identifier
     var id: String { username }
 }
+
 

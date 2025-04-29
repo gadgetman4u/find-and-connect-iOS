@@ -2,9 +2,30 @@ import SwiftUI
 
 struct EncountersView: View {
     @Environment(\.dismiss) private var dismiss
-    let response: UploadResponse
-    let logType: LogType
+    
+    // Support both response types
+    var uploadResponse: UploadResponse?
+    var userEncountersResponse: UserEncountersResponse?
+    
+    // Common parameters
+    let logType: LogType?
     let currentUsername: String
+    
+    // Initialize with an UploadResponse (from log uploads)
+    init(response: UploadResponse, logType: LogType, currentUsername: String) {
+        self.uploadResponse = response
+        self.userEncountersResponse = nil
+        self.logType = logType
+        self.currentUsername = currentUsername
+    }
+    
+    // Initialize with a UserEncountersResponse (from getEncounters)
+    init(userResponse: UserEncountersResponse, username: String) {
+        self.uploadResponse = nil
+        self.userEncountersResponse = userResponse
+        self.logType = nil
+        self.currentUsername = username
+    }
     
     var body: some View {
         NavigationView {
@@ -16,21 +37,24 @@ struct EncountersView: View {
                     // List of encounters
                     encountersList
                     
-                    // New section for other users
-                    if let otherUsers = response.otherUsers, !otherUsers.isEmpty {
-                        otherUsersSection
-                    }
-                    
-                    // New section for log details
-                    if let log = response.log {
-                        logDetailsSection(log: log)
+                    // Only show these sections for upload responses
+                    if let response = uploadResponse {
+                        // New section for other users
+                        if let otherUsers = response.otherUsers, !otherUsers.isEmpty {
+                            otherUsersSection
+                        }
+                        
+                        // New section for log details
+                        if let log = response.log {
+                            logDetailsSection(log: log)
+                        }
                     }
                     
                     Spacer()
                 }
                 .padding()
             }
-            .navigationTitle("Encounters")
+            .navigationTitle(uploadResponse != nil ? "Encounters" : "My Encounters")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -44,19 +68,37 @@ struct EncountersView: View {
     
     private var summaryHeader: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Log Upload Successful")
-                .font(.headline)
-                .foregroundColor(.green)
-            
-            Text(response.message)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
-            Divider()
-            
-            Text("Found \(response.encounters?.count ?? 0) encounters")
-                .font(.title3)
-                .fontWeight(.medium)
+            if let response = uploadResponse {
+                // Upload response header
+                Text("Log Upload Successful")
+                    .font(.headline)
+                    .foregroundColor(.green)
+                
+                Text(response.message)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                
+                Divider()
+                
+                Text("Found \(response.encounters?.count ?? 0) encounters")
+                    .font(.title3)
+                    .fontWeight(.medium)
+            } else if let response = userEncountersResponse {
+                // User encounters response header
+                Text("User Encounters")
+                    .font(.headline)
+                    .foregroundColor(.teal)
+                
+                Text(response.message)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                
+                Divider()
+                
+                Text("Found \(response.encounters.count) encounters")
+                    .font(.title3)
+                    .fontWeight(.medium)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
@@ -70,11 +112,20 @@ struct EncountersView: View {
                 .font(.headline)
                 .padding(.vertical, 4)
             
-            if let encounters = response.encounters, !encounters.isEmpty {
+            if let response = uploadResponse, let encounters = response.encounters, !encounters.isEmpty {
+                // Display upload response encounters
                 ForEach(encounters, id: \.self) { encounter in
                     EncounterCard(
                         encounter: encounter,
                         logType: logType,
+                        currentUsername: currentUsername
+                    )
+                }
+            } else if let response = userEncountersResponse, !response.encounters.isEmpty {
+                // Display user encounters response
+                ForEach(response.encounters, id: \._id) { encounter in
+                    UserEncounterCard(
+                        encounter: encounter,
                         currentUsername: currentUsername
                     )
                 }
@@ -93,7 +144,7 @@ struct EncountersView: View {
                 .font(.headline)
                 .padding(.vertical, 4)
             
-            ForEach(response.otherUsers!) { user in
+            ForEach(uploadResponse!.otherUsers!) { user in
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(user.username)
@@ -175,15 +226,13 @@ struct InfoRow: View {
 
 struct EncounterCard: View {
     let encounter: Encounter
-    let logType: LogType
+    let logType: LogType?
     let currentUsername: String
     
     private var otherPersonName: String {
         if currentUsername == encounter.user1 {
-
             return encounter.user2
         } else {
-
             return encounter.user1
         }
     }
@@ -227,6 +276,84 @@ struct EncounterCard: View {
     private func formatDateRange(start: String, end: String) -> String {
         // You could format this better if the date strings are parseable
         return "\(start) to \(end)"
+    }
+}
+
+struct UserEncounterCard: View {
+    let encounter: Encounter
+    let currentUsername: String
+    
+    private var otherPersonName: String {
+        if currentUsername == encounter.user1 {
+            return encounter.user2
+        } else {
+            return encounter.user1
+        }
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("With: \(otherPersonName)")
+                        .font(.headline)
+                    
+                    Text(encounter.otherUser.email)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                Text("\(encounter.encounterDuration) minute(s)")
+                    .font(.subheadline)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.teal.opacity(0.8))
+                    .cornerRadius(8)
+            }
+            
+            HStack {
+                Image(systemName: "location.fill")
+                    .foregroundColor(.orange)
+                Text(encounter.encounterLocation)
+                    .font(.subheadline)
+            }
+            
+            HStack {
+                Image(systemName: "calendar.badge.clock")
+                    .foregroundColor(.green)
+                Text(formatDate(encounter.startTime))
+                    .font(.caption)
+            }
+            
+            HStack {
+                Image(systemName: "clock.fill")
+                    .foregroundColor(.blue)
+                Text("\(formatTime(encounter.startTime)) - \(formatTime(encounter.endTime))")
+                    .font(.caption)
+            }
+        }
+        .padding()
+        .background(Color(.systemGray5))
+        .cornerRadius(12)
+    }
+    
+    private func formatDate(_ dateString: String) -> String {
+        // Extract just the date part
+        if let spaceIndex = dateString.firstIndex(of: " ") {
+            return String(dateString[..<spaceIndex])
+        }
+        return dateString
+    }
+    
+    private func formatTime(_ dateString: String) -> String {
+        // Extract just the time part
+        if let spaceIndex = dateString.firstIndex(of: " ") {
+            return String(dateString[dateString.index(after: spaceIndex)...])
+        }
+        return dateString
     }
 }
 

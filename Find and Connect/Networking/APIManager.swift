@@ -21,8 +21,8 @@ enum LogType: String {
 
 class APIManager {
 //     Base URL
-    private let baseURL = "https://dev-msn-encounters-be-f0d4fvbdeef7g8dj.centralus-01.azurewebsites.net/api"
-//    private let baseURL = "http://10.194.213.230:8080/api"
+//    private let baseURL = "https://dev-msn-encounters-be-f0d4fvbdeef7g8dj.centralus-01.azurewebsites.net/api"
+    private let baseURL = "http://10.194.213.230:8080/api"
     
     // Singleton instance
     static let shared = APIManager()
@@ -106,6 +106,108 @@ class APIManager {
         } else {
             let errorMessage = "Upload failed with status code: \(httpResponse.statusCode)"
             if let responseString = String(data: responseData, encoding: .utf8) {
+                throw NSError(domain: "APIError", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "\(errorMessage) - \(responseString)"])
+            } else {
+                throw NSError(domain: "APIError", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: errorMessage])
+            }
+        }
+    }
+    
+    func processEncounters(for username: String) async throws -> ProcessResponse {
+        // Set up URL
+        guard let encodedUsername = username.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let url = URL(string: "\(baseURL)/logs/process-encounters/\(encodedUsername)") else {
+            print("⚠️ Error: Invalid URL for username: \(username)")
+            throw URLError(.badURL)
+        }
+        
+        print("🔄 Processing encounters for user: \(username)")
+        print("🔗 URL: \(url.absoluteString)")
+        
+        // Set up URL Request
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 15 // Add a timeout to prevent hanging
+        
+        // Send the request
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        // Process the Response
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        
+        print("📊 Response status code: \(httpResponse.statusCode)")
+        
+        // Check status codes
+        if(httpResponse.statusCode == 200 || httpResponse.statusCode == 201) {
+            do {
+                if let responseString = String(data: data, encoding: .utf8) {
+                    print("📝 Response data: \(responseString)")
+                } else {
+                    print("✅ Processing Successful")
+                }
+                
+                let decoder = JSONDecoder()
+                let processResponse = try decoder.decode(ProcessResponse.self, from: data)
+                return processResponse
+            } catch {
+                print("⚠️ Decoding Error: \(error)")
+                throw APIError.decodingError(error)
+            }
+        } else {
+            let errorMessage = "Processing failed with status code: \(httpResponse.statusCode)"
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("⚠️ API Error: \(errorMessage) - \(responseString)")
+                throw NSError(domain: "APIError", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "\(errorMessage) - \(responseString)"])
+            } else {
+                print("⚠️ API Error: \(errorMessage)")
+                throw NSError(domain: "APIError", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: errorMessage])
+            }
+        }
+    }
+    
+    func getEncounters(for username: String) async throws -> UserEncountersResponse {
+        // Set up URL
+        guard let encodedUsername = username.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let url = URL(string: "\(baseURL)/encounters/user-encounters/\(encodedUsername)") else {
+            throw URLError(.badURL)
+        }
+        
+        // Set up URL Request
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        
+        print("Fetching encounters for user: \(username)")
+        
+        // Send the request
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        // Process the Response
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        
+        // Check status codes
+        if(httpResponse.statusCode == 200) {
+            do {
+                if let responseString = String(data: data, encoding: .utf8) {
+                    print("Encounters response: \(responseString)")
+                } else {
+                    print("Fetched encounters successfully")
+                }
+                
+                let decoder = JSONDecoder()
+                let encountersResponse = try decoder.decode(UserEncountersResponse.self, from: data)
+                return encountersResponse
+            } catch {
+                print("Decoding Error: \(error)")
+                throw APIError.decodingError(error)
+            }
+        } else {
+            let errorMessage = "Failed to fetch encounters with status code: \(httpResponse.statusCode)"
+            if let responseString = String(data: data, encoding: .utf8) {
                 throw NSError(domain: "APIError", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "\(errorMessage) - \(responseString)"])
             } else {
                 throw NSError(domain: "APIError", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: errorMessage])

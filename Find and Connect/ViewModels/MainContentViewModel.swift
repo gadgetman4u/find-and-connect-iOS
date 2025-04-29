@@ -33,6 +33,20 @@ class MainContentViewModel: ObservableObject {
     @Published var uploadResponse: UploadResponse?
     @Published var showingEncountersView = false
     
+    // Add new properties to track log uploads
+    @Published var hasTellLogUploaded = false
+    @Published var hasHeardLogUploaded = false
+    @Published var isProcessingEncounters = false
+    @Published var processEncountersMessage = ""
+    @Published var showProcessEncountersAlert = false
+    @Published var processResponse: ProcessResponse?
+    
+    // Add a new property to store user encounter response
+    @Published var userEncountersResponse: UserEncountersResponse?
+    @Published var isLoadingEncounters = false
+    @Published var showUserEncountersView = false
+    @Published var encountersErrorMessage: String?
+    
     // MARK: - Computed Properties
     var isScanning: Bool {
         beaconManager.isScanning
@@ -262,20 +276,21 @@ class MainContentViewModel: ObservableObject {
                 logType: logType
             )
             
-            // Store the response for the encounters view
+            // Handle upload response
             await MainActor.run {
                 self.uploadResponse = result
                 self.isUploading = false
                 
-                // Use optional chaining and nil-coalescing to safely check the array
-                let encounterCount = result.encounters?.count ?? 0
-                if encounterCount > 0 {
-                    self.showingEncountersView = true
+                // Set the appropriate flag based on which log was uploaded
+                if isHeardSet {
+                    self.hasHeardLogUploaded = true
                 } else {
-                    // Otherwise just show a success message
-                    self.uploadMessage = "Upload successful: \(result.message)"
-                    self.showUploadAlert = true
+                    self.hasTellLogUploaded = true
                 }
+                
+                // Show success message
+                self.uploadMessage = "Upload successful: \(result.message)"
+                self.showUploadAlert = true
             }
             
         } catch {
@@ -284,6 +299,69 @@ class MainContentViewModel: ObservableObject {
                 isUploading = false
                 uploadMessage = "Upload failed: \(error.localizedDescription)"
                 showUploadAlert = true
+            }
+        }
+    }
+
+    func processEncountersWithAPIManager() async {
+        // Update UI to show loading
+        await MainActor.run {
+            isProcessingEncounters = true
+        }
+        
+        do {
+            // Process encounters using APIManager
+            let result = try await APIManager.shared.processEncounters(for: username)
+            
+            // Handle success
+            await MainActor.run {
+                self.processResponse = result
+                self.isProcessingEncounters = false
+                
+                // Show the result to the user
+                if result.encountersDetected > 0 {
+                    self.processEncountersMessage = "\(result.encountersDetected) encounters found. \(result.explanation)"
+                    self.showProcessEncountersAlert = true
+                } else {
+                    self.processEncountersMessage = "No encounters found: \(result.message)"
+                    self.showProcessEncountersAlert = true
+                }
+            }
+        } catch {
+            // Handle error
+            await MainActor.run {
+                isProcessingEncounters = false
+                processEncountersMessage = "Processing failed: \(error.localizedDescription)"
+                showProcessEncountersAlert = true
+            }
+        }
+    }
+
+    // Add a method to fetch user encounters
+    func loadUserEncounters() {
+        Task {
+            await fetchUserEncounters(username: username)
+        }
+    }
+
+    private func fetchUserEncounters(username: String) async {
+        await MainActor.run {
+            isLoadingEncounters = true
+        }
+        
+        do {
+            let response = try await APIManager.shared.getEncounters(for: username)
+            
+            await MainActor.run {
+                self.userEncountersResponse = response
+                self.isLoadingEncounters = false
+                self.showUserEncountersView = true
+            }
+        } catch {
+            await MainActor.run {
+                self.isLoadingEncounters = false
+                self.encountersErrorMessage = "Failed to load encounters: \(error.localizedDescription)"
+                self.showUploadAlert = true
             }
         }
     }

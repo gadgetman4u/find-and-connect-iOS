@@ -147,6 +147,14 @@ struct MainContentView: View {
                 )
             }
         }
+        .sheet(isPresented: $viewModel.showUserEncountersView) {
+            if let response = viewModel.userEncountersResponse {
+                EncountersView(
+                    userResponse: response,
+                    username: viewModel.username
+                )
+            }
+        }
         .alert(isPresented: $viewModel.showUploadAlert) {
             Alert(
                 title: Text("Log Upload"),
@@ -154,15 +162,26 @@ struct MainContentView: View {
                 dismissButton: .default(Text("OK"))
             )
         }
+        .alert(isPresented: $viewModel.showProcessEncountersAlert) {
+            Alert(
+                title: Text("Process Encounters"),
+                message: Text(viewModel.processEncountersMessage),
+                dismissButton: .default(Text("OK"))
+            )
+        }
         .overlay(
             Group {
-                if viewModel.isUploading {
+                if viewModel.isUploading || viewModel.isProcessingEncounters || viewModel.isLoadingEncounters {
                     ZStack {
                         Color.black.opacity(0.4)
                         VStack {
                             ProgressView()
                                 .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            Text("Uploading...")
+                            Text(
+                                viewModel.isUploading ? "Uploading..." : 
+                                viewModel.isProcessingEncounters ? "Processing encounters..." :
+                                "Fetching encounters..."
+                            )
                                 .foregroundColor(.white)
                                 .padding(.top, 10)
                         }
@@ -299,6 +318,50 @@ struct MainContentView: View {
                 .contentShape(Rectangle()) // Make entire area tappable
             }
             .buttonStyle(CardButtonStyle(color: .blue))
+            .padding(.horizontal)
+            
+            // Process Encounters Button - Only enabled when both logs are uploaded
+            Button(action: {
+                Task {
+                    await viewModel.processEncountersWithAPIManager()
+                }
+            }) {
+                HStack {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 18))
+                    Text("Process Encounters")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 15)
+                        .fill((viewModel.hasTellLogUploaded && viewModel.hasHeardLogUploaded) ? 
+                              Color.purple.opacity(0.5) : Color.gray.opacity(0.3))
+                )
+            }
+            .disabled(!(viewModel.hasTellLogUploaded && viewModel.hasHeardLogUploaded))
+            .padding(.horizontal)
+            
+            // View My Encounters Button
+            Button(action: {
+                viewModel.loadUserEncounters()
+            }) {
+                HStack {
+                    Image(systemName: "person.2.fill")
+                        .font(.system(size: 18))
+                    Text("View My Encounters")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 15)
+                        .fill(Color.teal.opacity(0.5))
+                )
+            }
             .padding(.horizontal)
         }
     }
