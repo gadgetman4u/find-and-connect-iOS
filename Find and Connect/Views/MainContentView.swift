@@ -78,46 +78,53 @@ struct MainContentView: View {
     }
     
     var body: some View {
-        VStack(spacing: 20) {
-            if viewModel.isViewLoaded {
-                locationInfoSection
-                
-                Button(action: {
-                    viewModel.showingLocationSheet = true
-                }) {
-                    HStack {
-                        Image(systemName: "list.bullet")
-                        Text("View Discovered Locations (\(viewModel.discoveredBeaconCount))")
-                            .font(.system(size: 16, weight: .medium, design: .rounded))
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 15) {  // Reduced spacing
+                if viewModel.isViewLoaded {
+                    locationInfoSection
+                        .layoutPriority(1)
+                    
+                    Button(action: {
+                        viewModel.showingLocationSheet = true
+                    }) {
+                        HStack {
+                            Image(systemName: "list.bullet")
+                            Text("View Discovered Locations (\(viewModel.discoveredBeaconCount))")
+                                .font(.system(size: 14, weight: .medium, design: .rounded))
+                                .lineLimit(1)
+                        }
+                        .foregroundColor(.white)
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(
+                            RoundedRectangle(cornerRadius: 15)
+                                .fill(Color.white.opacity(0.2))
+                        )
+                        .padding(.horizontal)
                     }
-                    .foregroundColor(.white)
-                    .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(
-                        RoundedRectangle(cornerRadius: 15)
-                            .fill(Color.white.opacity(0.2))
-                    )
-                    .padding(.horizontal)
+                    .layoutPriority(2)
+                    
+                    improvedShareButtonsSection
+                        .layoutPriority(3)
+                    
+                } else {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(1.5)
+                        .padding()
+                    Text("Preparing...")
+                        .foregroundColor(.white)
+                        .font(.system(size: 16, weight: .medium))
                 }
-                
-                improvedShareButtonsSection
-                
-            } else {
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                    .scaleEffect(1.5)
-                    .padding()
-                Text("Preparing...")
-                    .foregroundColor(.white)
-                    .font(.system(size: 16, weight: .medium))
             }
+            .padding()
+            .frame(maxWidth: .infinity) 
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(Color.white.opacity(0.15))
+            )
+            .padding([.horizontal, .bottom])
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color.white.opacity(0.15))
-        )
-        .padding()
         .sheet(isPresented: $viewModel.showingLocationSheet) {
             LocationsSheetView(beaconManager: viewModel.beaconManager)
         }
@@ -257,14 +264,14 @@ struct MainContentView: View {
     }
     
     private var improvedShareButtonsSection: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 15) {
             // Tell Log Actions - Entire card is clickable
             Button(action: {
                 showingTellSetLog = true
             }) {
                 HStack {
                     Text("Tell Log")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                     
                     Spacer()
@@ -283,7 +290,7 @@ struct MainContentView: View {
                     .allowsHitTesting(true) // Ensure button gets taps
                 }
                 .padding(.horizontal)
-                .padding(.vertical, 10)
+                .padding(.vertical, 8)
                 .contentShape(Rectangle()) // Make entire area tappable
             }
             .buttonStyle(CardButtonStyle(color: .green))
@@ -295,7 +302,7 @@ struct MainContentView: View {
             }) {
                 HStack {
                     Text("Heard Log")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                     
                     Spacer()
@@ -314,7 +321,7 @@ struct MainContentView: View {
                     .allowsHitTesting(true) // Ensure button gets taps
                 }
                 .padding(.horizontal)
-                .padding(.vertical, 10)
+                .padding(.vertical, 8)
                 .contentShape(Rectangle()) // Make entire area tappable
             }
             .buttonStyle(CardButtonStyle(color: .blue))
@@ -328,13 +335,14 @@ struct MainContentView: View {
             }) {
                 HStack {
                     Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 18))
+                        .font(.system(size: 16))
                     Text("Process Encounters")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
                 }
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
-                .padding()
+                .padding(.vertical, 10)
+                .padding(.horizontal)
                 .background(
                     RoundedRectangle(cornerRadius: 15)
                         .fill((viewModel.hasTellLogUploaded && viewModel.hasHeardLogUploaded) ? 
@@ -350,13 +358,14 @@ struct MainContentView: View {
             }) {
                 HStack {
                     Image(systemName: "person.2.fill")
-                        .font(.system(size: 18))
+                        .font(.system(size: 16))
                     Text("View My Encounters")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
                 }
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
-                .padding()
+                .padding(.vertical, 10)
+                .padding(.horizontal)
                 .background(
                     RoundedRectangle(cornerRadius: 15)
                         .fill(Color.teal.opacity(0.5))
