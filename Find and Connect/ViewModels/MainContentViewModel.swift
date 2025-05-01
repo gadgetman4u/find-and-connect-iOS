@@ -78,13 +78,18 @@ class MainContentViewModel: ObservableObject {
     // Add to properties section
     @Published var lastUploadedLogType: LogType = .tellLog
     
+    // Add a computed property for trimmed username
+    private var trimmedUsername: String {
+        username.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
     // MARK: - Initialization
     init(beaconManager: BeaconScanManager, deviceManager: DeviceScanManager, peripheralManager: BluetoothPeripheralManager, username: String = "", email: String = "") {
         self.beaconManager = beaconManager
         self.deviceManager = deviceManager
         self.peripheralManager = peripheralManager
-        self.username = username
-        self.email = email
+        self.username = username.trimmingCharacters(in: .whitespacesAndNewlines) // Trim on init
+        self.email = email.trimmingCharacters(in: .whitespacesAndNewlines) // Trim on init
         
         // Start initial load animation
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -271,7 +276,7 @@ class MainContentViewModel: ObservableObject {
             // Upload using APIManager
             let result = try await APIManager.shared.uploadLog(
                 logContent: logContent,
-                username: username,
+                username: trimmedUsername,
                 email: email,
                 logType: logType
             )
@@ -311,7 +316,7 @@ class MainContentViewModel: ObservableObject {
         
         do {
             // Process encounters using APIManager
-            let result = try await APIManager.shared.processEncounters(for: username)
+            let result = try await APIManager.shared.processEncounters(for: trimmedUsername)
             
             // Handle success
             await MainActor.run {
@@ -340,7 +345,7 @@ class MainContentViewModel: ObservableObject {
     // Add a method to fetch user encounters
     func loadUserEncounters() {
         Task {
-            await fetchUserEncounters(username: username)
+            await fetchUserEncounters(username: trimmedUsername)
         }
     }
 
@@ -358,10 +363,17 @@ class MainContentViewModel: ObservableObject {
                 self.showUserEncountersView = true
             }
         } catch {
+            print("⚠️ Error fetching encounters: \(error.localizedDescription)")
+            
             await MainActor.run {
+                // Create empty response with error message
+                self.userEncountersResponse = UserEncountersResponse(
+                    message: "Error: \(error.localizedDescription)",
+                    encounters: [],
+                    success: false
+                )
                 self.isLoadingEncounters = false
-                self.encountersErrorMessage = "Failed to load encounters: \(error.localizedDescription)"
-                self.showUploadAlert = true
+                self.showUserEncountersView = true
             }
         }
     }

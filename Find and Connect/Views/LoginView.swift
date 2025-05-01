@@ -62,12 +62,17 @@ struct LoginView: View {
                         let isNameValid = !inputName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                         
                         if isNameValid && isEmailValid {
-                            username = inputName
-                            email = inputEmail
+                            // Trim username and email before setting
+                            let trimmedName = inputName.trimmingCharacters(in: .whitespacesAndNewlines)
+                            let trimmedEmail = inputEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+                            
+                            username = trimmedName
+                            email = trimmedEmail
                             isLoggedIn = true
+                            
                             // save to UserDefaults
-                            UserDefaults.standard.set(inputName, forKey: "username")
-                            UserDefaults.standard.set(inputEmail, forKey: "email")
+                            UserDefaults.standard.set(trimmedName, forKey: "username")
+                            UserDefaults.standard.set(trimmedEmail, forKey: "email")
                             UserDefaults.standard.set(true, forKey: "isLoggedIn")
                             showEmailError = false
                         } else if !isEmailValid {

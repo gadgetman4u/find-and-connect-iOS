@@ -21,8 +21,8 @@ enum LogType: String {
 
 class APIManager {
 //     Base URL
-//    private let baseURL = "https://dev-msn-encounters-be-f0d4fvbdeef7g8dj.centralus-01.azurewebsites.net/api"
-    private let baseURL = "http://10.194.213.230:8080/api"
+    private let baseURL = "https://dev-msn-encounters-be-f0d4fvbdeef7g8dj.centralus-01.azurewebsites.net/api"
+//    private let baseURL = "http://10.194.213.230:8080/api"
     
     // Singleton instance
     static let shared = APIManager()
@@ -114,14 +114,17 @@ class APIManager {
     }
     
     func processEncounters(for username: String) async throws -> ProcessResponse {
+        // Trim whitespace from username to prevent "not found" errors
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        
         // Set up URL
-        guard let encodedUsername = username.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+        guard let encodedUsername = trimmedUsername.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = URL(string: "\(baseURL)/logs/process-encounters/\(encodedUsername)") else {
             print("⚠️ Error: Invalid URL for username: \(username)")
             throw URLError(.badURL)
         }
         
-        print("🔄 Processing encounters for user: \(username)")
+        print("🔄 Processing encounters for user: '\(trimmedUsername)'")
         print("🔗 URL: \(url.absoluteString)")
         
         // Set up URL Request
@@ -169,49 +172,68 @@ class APIManager {
     }
     
     func getEncounters(for username: String) async throws -> UserEncountersResponse {
+        // Trim whitespace from username to prevent "not found" errors
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        
         // Set up URL
-        guard let encodedUsername = username.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = URL(string: "\(baseURL)/encounters/user-encounters/\(encodedUsername)") else {
+        guard let encodedUsername = trimmedUsername.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let url = URL(string: "\(baseURL)/logs/user-encounters/\(encodedUsername)") else {
+            print("⚠️ Error: Invalid URL for username: \(username)")
             throw URLError(.badURL)
         }
+        
+        print("🔍 Requesting encounters for user: '\(trimmedUsername)'")
+        print("🔗 URL: \(url.absoluteString)")
         
         // Set up URL Request
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        
-        print("Fetching encounters for user: \(username)")
+        request.timeoutInterval = 15 // Add a timeout to prevent hanging
         
         // Send the request
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        // Process the Response
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw URLError(.badServerResponse)
-        }
-        
-        // Check status codes
-        if(httpResponse.statusCode == 200) {
-            do {
-                if let responseString = String(data: data, encoding: .utf8) {
-                    print("Encounters response: \(responseString)")
-                } else {
-                    print("Fetched encounters successfully")
-                }
-                
-                let decoder = JSONDecoder()
-                let encountersResponse = try decoder.decode(UserEncountersResponse.self, from: data)
-                return encountersResponse
-            } catch {
-                print("Decoding Error: \(error)")
-                throw APIError.decodingError(error)
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            // Process the Response
+            guard let httpResponse = response as? HTTPURLResponse else {
+                print("⚠️ Error: Invalid response type")
+                throw URLError(.badServerResponse)
             }
-        } else {
-            let errorMessage = "Failed to fetch encounters with status code: \(httpResponse.statusCode)"
+            
+            print("📊 Response status code: \(httpResponse.statusCode)")
+            
+            // Print response data for debugging
             if let responseString = String(data: data, encoding: .utf8) {
-                throw NSError(domain: "APIError", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "\(errorMessage) - \(responseString)"])
-            } else {
-                throw NSError(domain: "APIError", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: errorMessage])
+                print("📝 Response data: \(responseString)")
             }
+            
+            // Check status codes
+            if(httpResponse.statusCode == 200) {
+                do {
+                    let decoder = JSONDecoder()
+                    let encountersResponse = try decoder.decode(UserEncountersResponse.self, from: data)
+                    print("✅ Successfully decoded \(encountersResponse.encounters.count) encounters")
+                    return encountersResponse
+                } catch {
+                    print("⚠️ Decoding Error: \(error)")
+                    if let responseString = String(data: data, encoding: .utf8) {
+                        print("📝 Failed to decode response: \(responseString)")
+                    }
+                    throw APIError.decodingError(error)
+                }
+            } else {
+                let errorMessage = "Failed to fetch encounters with status code: \(httpResponse.statusCode)"
+                if let responseString = String(data: data, encoding: .utf8) {
+                    print("⚠️ API Error: \(errorMessage) - \(responseString)")
+                    throw NSError(domain: "APIError", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "\(errorMessage) - \(responseString)"])
+                } else {
+                    print("⚠️ API Error: \(errorMessage)")
+                    throw NSError(domain: "APIError", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: errorMessage])
+                }
+            }
+        } catch {
+            print("⚠️ Network Error: \(error.localizedDescription)")
+            throw error // Re-throw the error to be caught by the caller
         }
     }
 }

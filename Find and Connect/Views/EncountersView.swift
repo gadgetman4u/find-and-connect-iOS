@@ -130,9 +130,26 @@ struct EncountersView: View {
                     )
                 }
             } else {
-                Text("No encounters found")
-                    .foregroundColor(.secondary)
-                    .padding()
+                VStack(spacing: 16) {
+                    Image(systemName: "person.2.slash")
+                        .font(.system(size: 50))
+                        .foregroundColor(.secondary)
+                        .padding(.bottom, 8)
+                    
+                    Text("No encounters found")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    
+                    Text("When you have encounters with other users, they will appear here.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 40)
+                .background(Color(.systemGray6))
+                .cornerRadius(12)
             }
         }
     }

@@ -63,6 +63,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     
     // If user doesn't exist, create a new one
     if (!user) {
+      console.log(`Creating new user: ${username}`);
       user = new User({
         username,
         email,   // Add email to new user
@@ -80,11 +81,20 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       user.tellLog = log;
     }
     
-    // Save user - handle potential errors with a cleaner approach
+    // Save user - with better error handling
     try {
-      await user.save();
-    } catch (error) {
-      console.error('Error saving user:', error.message);
+      const savedUser = await user.save();
+      console.log(`Successfully saved/updated user: ${username}`);
+    } catch (userError) {
+      console.error('Error saving user:', userError);
+      // Continue processing but report the error
+      return res.status(500).json({ 
+        message: 'Log uploaded but failed to update user record',
+        error: userError.toString(),
+        log,
+        logId: log._id,
+        success: false
+      });
     }
     
     // Create type-specific log document
@@ -104,11 +114,17 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     res.status(201).json({
       message: `Log uploaded successfully. Ready for encounter processing.`,
       log,
-      logId: log._id
+      logId: log._id,
+      success: true
     });
   } catch (error) {
     console.error('Upload error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    res.status(500).json({ 
+      message: 'Server error', 
+      error: error.toString(),
+      stack: error.stack,
+      success: false 
+    });
   }
 });
 

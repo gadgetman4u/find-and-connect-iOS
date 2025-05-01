@@ -160,6 +160,17 @@ struct MainContentView: View {
                     userResponse: response,
                     username: viewModel.username
                 )
+            } else {
+                // Create empty response to show zero encounters
+                let emptyResponse = UserEncountersResponse(
+                    message: "No encounters found",
+                    encounters: [],
+                    success: true
+                )
+                EncountersView(
+                    userResponse: emptyResponse,
+                    username: viewModel.username
+                )
             }
         }
         .alert(isPresented: $viewModel.showUploadAlert) {
