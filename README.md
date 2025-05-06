@@ -8,8 +8,9 @@ This research project aims to understand human behavior and mobility patterns du
 ### Download
 1. Go to the [Github](https://github.com/illinoisdpi/msn-encounters-ios) page and ensure you're on the main branch
 2. Press the green "〈〉 Code" drop down, and press open with XCode
-3. Connect your device to your laptop and select it to run in XCode
-4. Press Run and Install!
+3. Clone the project in to a folder of your choice.
+4. Connect your device to your laptop and select it to run in XCode
+5. Press Run and Install!
 
 ### Run the Application
 1. Enable developer mode on your iPhone

@@ -177,7 +177,7 @@ class APIManager {
         
         // Set up URL
         guard let encodedUsername = trimmedUsername.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = URL(string: "\(baseURL)/logs/user-encounters/\(encodedUsername)") else {
+              let url = URL(string: "\(baseURL)/encounters/user-encounters/\(encodedUsername)") else {
             print("⚠️ Error: Invalid URL for username: \(username)")
             throw URLError(.badURL)
         }
