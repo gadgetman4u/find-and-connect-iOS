@@ -1,6 +1,7 @@
 import Foundation
 import CoreBluetooth
 
+// Bluetooth Advertiser class
 class BluetoothPeripheralManager: NSObject, ObservableObject, CBPeripheralManagerDelegate {
     @Published var isAdvertising = false
     @Published var isBluetoothOn = false
@@ -124,7 +125,7 @@ class BluetoothPeripheralManager: NSObject, ObservableObject, CBPeripheralManage
     private func startPeriodicLogging() {
         logTimer?.invalidate()
         
-        logTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
+        logTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in // every 30 seconds, updates TellSet log and generate new EID
             guard let self = self else { return }
             
             self.eid = self.eidGenerator.generateEid()
@@ -153,7 +154,7 @@ class BluetoothPeripheralManager: NSObject, ObservableObject, CBPeripheralManage
         stopAdvertising()
     }
 
-    // For sharing
+    // For sharing the TellLog content to the View Model
     func getTellLog() -> String {
         // Return the tell log content
         // Replace this with your actual implementation to access the log

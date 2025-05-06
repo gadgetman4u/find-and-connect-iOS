@@ -7,6 +7,8 @@
 
 import Foundation
 
+// data structure is based from MongoDB data schema
+// if need to make changes to this, change MongoDB first and then here
 struct UploadResponse: Codable {
     let message: String
     let log: LogInfo?

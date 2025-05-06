@@ -8,6 +8,8 @@
 import Foundation
 import UIKit
 
+// for storing logs on phone
+
 class LogModifier {
     var timestamp: TimeInterval
     var eid: String

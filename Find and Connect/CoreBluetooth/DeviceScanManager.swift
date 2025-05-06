@@ -1,6 +1,7 @@
 import Foundation
 import CoreBluetooth
 
+// Bluetooth Scanner for other Find & Connect clients class
 class DeviceScanManager: NSObject, ObservableObject, CBCentralManagerDelegate {
     @Published var isBluetoothOn = false
     @Published var isScanning = false
@@ -66,6 +67,7 @@ class DeviceScanManager: NSObject, ObservableObject, CBCentralManagerDelegate {
         )
     }
     
+    // iOS app notification
     @objc private func handleLocationChanged(_ notification: Notification) {
         if let locationName = notification.userInfo?["locationName"] as? String {
             self.currentLocationId = locationName
@@ -73,6 +75,7 @@ class DeviceScanManager: NSObject, ObservableObject, CBCentralManagerDelegate {
         }
     }
     
+    // iOS app notification
     @objc private func handleOutOfRange() {
         self.currentLocationId = ""
         print("Device Scanner: Out of range")
@@ -117,6 +120,7 @@ class DeviceScanManager: NSObject, ObservableObject, CBCentralManagerDelegate {
     }
     
     // MARK: - Device Scanning Methods
+    // scans BT devices every 5 seconds
     
     func startScanning() {
         guard isBluetoothOn else { return }
@@ -147,7 +151,7 @@ class DeviceScanManager: NSObject, ObservableObject, CBCentralManagerDelegate {
             if advertisedServicesArray.contains(serviceUUID) {
                 let currentTime = Date().timeIntervalSince1970
                 if currentTime - lastPrintTime >= printInterval {
-                    if let fullName = peripheral.name {
+                    if let fullName = peripheral.name { //peripheral name = EID + locationID
                         print("\nDevice Scanner --- Advertisement Data ---")
                         print("Peripheral name: \(fullName)")
                         
@@ -155,6 +159,7 @@ class DeviceScanManager: NSObject, ObservableObject, CBCentralManagerDelegate {
                         let locationID = String(fullName.dropFirst(23))
                         let locationName = self.getLocationName(locationID) ?? "Unknown Location"
                         
+                        // -60 is the threshold to see other Bluetooth devices
                         if RSSI.intValue >= -60 && locationToIDMap[currentLocationId] == locationID {
                             heardSet.updateHeardSetLog(
                                 eid: eid,

@@ -15,7 +15,7 @@ class BeaconScanManager: NSObject, ObservableObject, CBCentralManagerDelegate {
     // Track beacons with last seen timestamps
     private var beaconLastSeen: [String: Date] = [:]
     private var scanTimer: Timer?
-    private let beaconTimeoutInterval: TimeInterval = 20.0 // Allow more time before timeout
+    private let beaconTimeoutInterval: TimeInterval = 20.0 // Indicates seconds to wait before doing another beacon discovery
     
     // Forward mapping (name to ID)
     private let locationToIDMap: [String: String] = [
