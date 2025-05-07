@@ -116,31 +116,48 @@ struct MainAppContent: View {
                     )
                 }
                 
-                Spacer()
                 
-                HStack {
-                    Button(action: {
-                        showingHelpInfo = true
-                    }) {
-                        Text("More Info")
-                            .foregroundColor(.white)
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 16)
-                            .background(Color.white.opacity(0.2))
-                            .cornerRadius(8)
+                VStack(spacing: 0)
+                {
+                    HStack() {
+                        Image("dpi_logo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 150, height: 150)
+                            .padding(.horizontal)
+                        
+                        
+                        Image("SRI2025_logo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 150, height: 150)
+                            .padding(.horizontal)
                     }
+                    .padding(.bottom, -40)
                     
-                    Spacer()
-                    Button(action: {
-                        showingVersionInfo = true
-                    }) {
-                        Image(systemName: "info.circle")
-                            .font(.system(size: 20))
-                            .foregroundColor(.white)
-                            .padding()
+                    
+                    HStack {
+                        Button(action: {
+                            showingHelpInfo = true
+                        }) {
+                            Text("More Info")
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .background(Color.white.opacity(0.2))
+                                .cornerRadius(8)
+                        }
+                        
+                        Spacer()
+                        Button(action: {
+                            showingVersionInfo = true
+                        }) {
+                            Image(systemName: "info.circle")
+                                .font(.system(size: 20))
+                                .foregroundColor(.white)
+                        }
                     }
+                    .padding(.horizontal)
                 }
-                .padding(.horizontal)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("LocationChanged"))) { notification in

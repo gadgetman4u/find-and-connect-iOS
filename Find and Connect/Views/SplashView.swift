@@ -19,22 +19,44 @@ struct SplashView: View {
                 .ignoresSafeArea()
                 
                 VStack {
-                    Image(systemName: "wave.3.right.circle.fill")
-                        .font(.system(size: 80))
-                        .foregroundColor(.white)
+                    Spacer()
                     
-                    Text("Find & Connect")
-                        .font(.system(size: 40, weight: .bold, design: .rounded))
-                        .foregroundColor(.white.opacity(0.8))
-                }
-                .scaleEffect(size)
-                .opacity(opacity)
-                .onAppear {
-                    withAnimation(.easeIn(duration: 1.2)) {
-                        self.size = 0.9
-                        self.opacity = 1.0
+                    VStack {
+                        Image(systemName: "wave.3.right.circle.fill")
+                            .font(.system(size: 80))
+                            .foregroundColor(.white)
+                        
+                        Text("Find & Connect")
+                            .font(.system(size: 40, weight: .bold, design: .rounded))
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                    .scaleEffect(size)
+                    .opacity(opacity)
+                    .onAppear {
+                        withAnimation(.easeIn(duration: 1.2)) {
+                            self.size = 0.9
+                            self.opacity = 1.0
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    HStack {
+                        Image("dpi_logo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 150, height: 150)
+                            .padding(.horizontal)
+                        
+                        
+                        Image("SRI2025_logo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 150, height: 150)
+                            .padding(.horizontal)
                     }
                 }
+                
             }
             .onAppear {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
@@ -46,3 +68,7 @@ struct SplashView: View {
         }
     }
 } 
+
+#Preview {
+    SplashView(appVersion: "2.0")
+}
