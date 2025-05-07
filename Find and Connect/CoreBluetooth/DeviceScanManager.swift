@@ -31,7 +31,22 @@ class DeviceScanManager: NSObject, ObservableObject, CBCentralManagerDelegate {
         "Poster_3": "3",
         "Poster_4": "4",
         "Poster_5": "5",
-        "DPI_20_2049": "6"
+        "Poster_6": "6",
+        "Poster_7": "7",
+        "Poster_8": "8",
+        "Poster_9": "9",
+        "Poster_10": "10",
+        "Poster_11": "11",
+        "Poster_12": "12",
+        "Poster_13": "13",
+        "Poster_14": "14",
+        "Poster_15": "15",
+        "Poster_16": "16",
+        "Poster_17": "17",
+        "Poster_18": "18",
+        "Poster_19": "19",
+        "Poster_20": "20"
+        //"DPI_20_2049": "6"
     ]
     
     // Reverse mapping (ID to name)
@@ -160,7 +175,7 @@ class DeviceScanManager: NSObject, ObservableObject, CBCentralManagerDelegate {
                         let locationName = self.getLocationName(locationID) ?? "Unknown Location"
                         
                         // -60 is the threshold to see other Bluetooth devices
-                        if RSSI.intValue >= -60 && locationToIDMap[currentLocationId] == locationID {
+                        if RSSI.intValue >= -70 && locationToIDMap[currentLocationId] == locationID {
                             heardSet.updateHeardSetLog(
                                 eid: eid,
                                 locationId: locationName,

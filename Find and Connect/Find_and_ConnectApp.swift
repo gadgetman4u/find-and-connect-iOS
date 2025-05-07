@@ -10,7 +10,11 @@ import SwiftUI
 @main
 struct Find_and_ConnectApp: App {
     
-    let appVersion = "2.0" // App version for version control
+    var appVersion: String {
+        let dictionary = Bundle.main.infoDictionary!
+        let version = dictionary["CFBundleShortVersionString"] as! String
+        return "\(version)"
+    }
     
     var body: some Scene {
         WindowGroup {

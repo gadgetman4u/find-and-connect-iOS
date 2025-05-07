@@ -33,6 +33,8 @@ struct LoginView: View {
             .ignoresSafeArea()
             
             VStack(spacing: 30) {
+                Spacer()
+                Spacer()
                 Text("Welcome")
                     .font(.system(size: 40, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
@@ -91,6 +93,23 @@ struct LoginView: View {
                             .padding(.horizontal)
                     }
                     .disabled(inputName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    
+                    Spacer()
+                    
+                    HStack {
+                        Image("dpi_logo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 150, height: 150)
+                            .padding(.horizontal)
+                        
+                        
+                        Image("SRI2025_logo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 150, height: 150)
+                            .padding(.horizontal)
+                    }
                 }
                 .padding()
                 .background(
@@ -102,5 +121,4 @@ struct LoginView: View {
         }
     }
 }
-
 
